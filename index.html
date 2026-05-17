@@ -135,21 +135,42 @@
   .card .label { font-size: 10px; letter-spacing: 0.05em; }
 
   /* Comfort hero */
-  .hero-comfort { padding: 10px 12px 12px; }
+  .hero-comfort {
+    padding: 12px 14px 14px;
+    background: linear-gradient(160deg, #181820, #121218);
+    border: 1px solid #2a2a32;
+  }
   .hero-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-  .hero-val { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; }
-  .hero-val .unit { font-size: 12px; color: #888; font-weight: 400; margin-left: 4px; }
-  .hero-label { font-size: 14px; color: #ccc; font-weight: 500; text-align: right; }
-  .hero-comfort .comfort-bar { margin-top: 10px; }
+  .hero-val {
+    font-size: 38px; font-weight: 800; font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em; margin-top: 2px;
+    background: linear-gradient(180deg, #fff, #d8d8e0);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .hero-val .unit {
+    font-size: 12px; color: #888; font-weight: 400; margin-left: 6px;
+    -webkit-text-fill-color: #888;
+  }
+  .hero-label {
+    font-size: 14px; color: #ccc; font-weight: 600; text-align: right;
+    padding: 4px 10px; background: rgba(255,255,255,0.04); border-radius: 8px;
+  }
+  .hero-comfort .comfort-bar {
+    margin-top: 12px; height: 10px;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.4);
+  }
 
   /* Badge row (road + weather) */
   .badge-row {
     display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;
   }
   .badge-row .road-badge, .badge-row .weather-badge {
-    flex: 1; text-align: center; padding: 8px 10px; font-size: 13px;
-    border-radius: 10px;
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 10px 12px; font-size: 13px; border-radius: 10px;
+    min-height: 40px;
   }
+  .b-icon { font-size: 16px; line-height: 1; opacity: 0.85; }
+  .b-text { font-weight: 600; }
   .weather-badge {
     background: #1c1c1e; border: 1px solid #333; color: #fff; font-weight: 600;
   }
@@ -174,26 +195,52 @@
   .ss-val { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; }
 
   /* Recommendation hero */
-  .rec-card { background: linear-gradient(145deg, #1a1a1f, #141414); border-color: #2a2a30; }
-  .rec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .rec-apply {
-    background: #ff9500; color: #000; border: none; padding: 6px 14px;
-    border-radius: 8px; font-size: 13px; font-weight: 600;
+  .rec-card {
+    background: linear-gradient(145deg, #1d1d24, #141418);
+    border-color: #2e2e38;
+    padding: 12px;
   }
-  .rec-apply:disabled { background: #333; color: #777; }
-  .rec-grid {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;
+  .rec-head { display: flex; align-items: center; justify-content: space-between; }
+  .rec-conf {
+    font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 2px 8px; background: rgba(255,255,255,0.04); border-radius: 6px;
   }
-  .rec-cell {
-    background: #0c0c0e; border-radius: 10px; padding: 8px 10px;
-    border: 1px solid #2a2a30;
+  .rec-conf.high { color: #34c759; background: rgba(52,199,89,0.08); }
+  .rec-conf.med { color: #ffcc00; background: rgba(255,204,0,0.08); }
+  .rec-conf.low { color: #ff9500; background: rgba(255,149,0,0.08); }
+  .rec-diff-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px;
   }
-  .rec-sub { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
-  .rec-val { font-size: 22px; font-weight: 700; color: #ff9500; font-variant-numeric: tabular-nums; }
-  .rec-val.matches { color: #34c759; }
-  .rec-cur { font-size: 11px; color: #888; margin-top: 2px; }
+  .rec-diff {
+    background: rgba(0,0,0,0.25); border-radius: 9px; padding: 8px 10px;
+    border: 1px solid #25252e;
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  }
+  .rec-diff.match { border-color: rgba(52,199,89,0.25); }
+  .rec-diff.up    { border-color: rgba(255,149,0,0.35); }
+  .rec-diff.down  { border-color: rgba(90,200,250,0.35); }
+  .rd-lbl { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+  .rd-val { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .rd-val .cur { color: #ccc; }
+  .rd-val .arrow { margin: 0 4px; font-weight: 400; opacity: 0.6; font-size: 14px; }
+  .rd-val .new { color: #ff9500; }
+  .rec-diff.match .rd-val .cur { color: #34c759; }
+  .rec-diff.match .rd-val::after { content: '✓'; color: #34c759; margin-left: 6px; font-weight: 700; }
+  .rec-diff.up    .rd-val .new::after { content: '↑'; margin-left: 4px; color: #ff9500; }
+  .rec-diff.down  .rd-val .new::after { content: '↓'; margin-left: 4px; color: #5ac8fa; }
+  .rec-diff.down  .rd-val .new { color: #5ac8fa; }
   .rec-reason {
-    margin-top: 8px; font-size: 12px; color: #bbb; line-height: 1.35;
+    margin-top: 10px; font-size: 12px; color: #bbb; line-height: 1.4;
+  }
+  .rec-apply-full {
+    width: 100%; margin-top: 10px; min-height: 44px;
+    background: #ff9500; color: #000; border: none;
+    border-radius: 10px; font-size: 15px; font-weight: 700; letter-spacing: 0.01em;
+    box-shadow: 0 4px 12px rgba(255,149,0,0.25);
+  }
+  .rec-apply-full:disabled {
+    background: rgba(52,199,89,0.12); color: #34c759; box-shadow: none;
+    border: 1px solid rgba(52,199,89,0.25);
   }
 
   /* Compact setup card */
@@ -229,10 +276,16 @@
   .psi-mini .psi-munit { font-size: 9px; color: #888; font-weight: 400; margin-left: 2px; }
 
   /* Compact controls */
-  .controls { gap: 8px; margin-top: 8px; }
-  .controls button { min-height: 42px; }
-  .controls .ghost { flex: 0 0 80px; padding: 8px 10px; }
-  .controls .primary { padding: 10px 18px; font-size: 16px; }
+  .controls { gap: 8px; margin-top: 10px; }
+  .controls button { min-height: 48px; border-radius: 12px; }
+  .controls .ghost {
+    flex: 0 0 80px; padding: 8px 10px; font-size: 13px;
+    background: transparent; border-color: #3a3a3e; color: #ccc;
+  }
+  .controls .primary {
+    padding: 12px 18px; font-size: 16px; font-weight: 700;
+    box-shadow: 0 4px 14px rgba(255,149,0,0.3);
+  }
 
   /* Trip list */
   .trip-item {
@@ -315,8 +368,8 @@
 
     <!-- Road + Weather badges -->
     <div class="badge-row">
-      <span class="road-badge unknown" id="roadBadge">— locating —</span>
-      <span class="weather-badge unknown" id="weatherBadge">—</span>
+      <span class="road-badge unknown" id="roadBadge"><span class="b-icon">📍</span><span class="b-text">— locating —</span></span>
+      <span class="weather-badge unknown" id="weatherBadge"><span class="b-icon">☀</span><span class="b-text">—</span></span>
     </div>
     <div class="badge-detail" id="contextDetail">Waiting for GPS fix…</div>
 
@@ -330,22 +383,17 @@
     <!-- Recommendation hero -->
     <div class="card rec-card">
       <div class="rec-head">
-        <div class="label">Recommended now</div>
-        <button class="rec-apply" id="btnApplyRec" disabled>Apply</button>
+        <div class="label">Recommended for now</div>
+        <div class="rec-conf" id="recConf"></div>
       </div>
-      <div class="rec-grid">
-        <div class="rec-cell">
-          <div class="rec-sub">Clicks F/R</div>
-          <div class="rec-val"><span id="recClick">—/—</span></div>
-          <div class="rec-cur">now <span id="curClick">5/5</span></div>
-        </div>
-        <div class="rec-cell">
-          <div class="rec-sub">PSI F/R</div>
-          <div class="rec-val"><span id="recPsi">—/—</span></div>
-          <div class="rec-cur">now <span id="curPsi">38/36</span></div>
-        </div>
+      <div class="rec-diff-grid">
+        <div class="rec-diff" id="diffClickF"><div class="rd-lbl">Click F</div><div class="rd-val">—</div></div>
+        <div class="rec-diff" id="diffClickR"><div class="rd-lbl">Click R</div><div class="rd-val">—</div></div>
+        <div class="rec-diff" id="diffPsiF"><div class="rd-lbl">PSI F</div><div class="rd-val">—</div></div>
+        <div class="rec-diff" id="diffPsiR"><div class="rd-lbl">PSI R</div><div class="rd-val">—</div></div>
       </div>
       <div class="rec-reason" id="recReason">Need GPS + road class to recommend.</div>
+      <button class="rec-apply-full" id="btnApplyRec" disabled>Apply suggested setup</button>
     </div>
 
     <!-- Compact click + psi controls -->
@@ -617,17 +665,18 @@ function renderRoad() {
   const badge = document.getElementById('roadBadge');
   const detail = document.getElementById('contextDetail');
   if (!badge || !detail) return;
+  // [text, css-class, icon]
   const labels = {
-    highway_sealed: ['Sealed highway', 'sealed'],
-    road_sealed: ['Sealed road', 'sealed'],
-    road_unsealed: ['Dirt / gravel', 'unsealed'],
-    track_4wd: ['4WD track', 'track'],
-    offroad: ['Off-road', 'offroad'],
-    unknown: ['Locating…', 'unknown'],
+    highway_sealed: ['Highway', 'sealed', '🛣'],
+    road_sealed:    ['Sealed road', 'sealed', '🛣'],
+    road_unsealed:  ['Dirt / gravel', 'unsealed', '🪨'],
+    track_4wd:      ['4WD track', 'track', '🏔'],
+    offroad:        ['Off-road', 'offroad', '🌿'],
+    unknown:        ['Locating…', 'unknown', '📍'],
   };
-  const [text, cls] = labels[S.road.class] || labels.unknown;
+  const [text, cls, icon] = labels[S.road.class] || labels.unknown;
   badge.className = 'road-badge ' + cls;
-  badge.textContent = text;
+  badge.innerHTML = `<span class="b-icon">${icon}</span><span class="b-text">${text}</span>`;
   renderContextDetail();
 }
 
@@ -735,18 +784,20 @@ function renderWeather() {
   const badge = document.getElementById('weatherBadge');
   const temp = document.getElementById('tempDisplay');
   if (!badge) return;
+  // [text, icon]
   const labels = {
-    clear: 'Clear',
-    cloudy: 'Cloudy',
-    light_rain: 'Light rain',
-    heavy_rain: 'Heavy rain',
-    snow: 'Snow',
-    unknown: '—',
+    clear:      ['Clear', '☀'],
+    cloudy:     ['Cloudy', '☁'],
+    light_rain: ['Light rain', '🌦'],
+    heavy_rain: ['Heavy rain', '🌧'],
+    snow:       ['Snow', '❄'],
+    unknown:    ['—', '·'],
   };
+  const [label, icon] = labels[S.weather.condition] || labels.unknown;
   badge.className = 'weather-badge ' + S.weather.condition;
-  let txt = labels[S.weather.condition] || '—';
-  if (S.weather.tempC != null) txt += `  ${S.weather.tempC.toFixed(0)}°`;
-  badge.textContent = txt;
+  let txt = label;
+  if (S.weather.tempC != null) txt += ` ${S.weather.tempC.toFixed(0)}°`;
+  badge.innerHTML = `<span class="b-icon">${icon}</span><span class="b-text">${txt}</span>`;
   if (temp) temp.textContent = S.weather.tempC != null ? `${S.weather.tempC.toFixed(0)}°` : '—°';
   renderContextDetail();
 }
@@ -865,37 +916,56 @@ function updateRecommendation() {
 }
 
 function renderRecommendation() {
-  const recClick = document.getElementById('recClick');
-  const recPsi = document.getElementById('recPsi');
   const recReason = document.getElementById('recReason');
-  const curClick = document.getElementById('curClick');
-  const curPsi = document.getElementById('curPsi');
+  const recConf = document.getElementById('recConf');
   const btnApply = document.getElementById('btnApplyRec');
-  if (!recClick) return;
-  curClick.textContent = `${S.click.front}/${S.click.rear}`;
-  curPsi.textContent = `${S.psi.front}/${S.psi.rear}`;
+  const diffs = {
+    clickF: { el: document.getElementById('diffClickF'), cur: S.click.front, rec: S.rec?.click.front, suffix: '' },
+    clickR: { el: document.getElementById('diffClickR'), cur: S.click.rear,  rec: S.rec?.click.rear,  suffix: '' },
+    psiF:   { el: document.getElementById('diffPsiF'),   cur: S.psi.front,   rec: S.rec?.psi.front,   suffix: '' },
+    psiR:   { el: document.getElementById('diffPsiR'),   cur: S.psi.rear,    rec: S.rec?.psi.rear,    suffix: '' },
+  };
+  if (!recReason) return;
+
   if (!S.rec) {
-    recClick.textContent = '—/—';
-    recPsi.textContent = '—/—';
+    for (const k in diffs) {
+      const d = diffs[k];
+      if (!d.el) continue;
+      d.el.className = 'rec-diff';
+      d.el.querySelector('.rd-val').innerHTML = `<span class="cur">${d.cur}</span>`;
+    }
     recReason.textContent = S.road.class === 'unknown'
-      ? 'Need GPS + road class to recommend.'
+      ? 'Waiting for GPS + road class.'
       : 'Computing…';
+    recConf.textContent = '';
+    recConf.className = 'rec-conf';
     btnApply.disabled = true;
-    recClick.classList.remove('matches');
-    recPsi.classList.remove('matches');
+    btnApply.textContent = 'Apply suggested setup';
     return;
   }
-  recClick.textContent = `${S.rec.click.front}/${S.rec.click.rear}`;
-  recPsi.textContent = `${S.rec.psi.front}/${S.rec.psi.rear}`;
-  const clickMatch = S.rec.click.front === S.click.front && S.rec.click.rear === S.click.rear;
-  const psiMatch = S.rec.psi.front === S.psi.front && S.rec.psi.rear === S.psi.rear;
-  recClick.classList.toggle('matches', clickMatch);
-  recPsi.classList.toggle('matches', psiMatch);
-  btnApply.disabled = (clickMatch && psiMatch);
-  const conf = S.rec.confidence === 'high' ? '' :
-               S.rec.confidence === 'med' ? ' (medium confidence)' :
-                                            ' (low confidence)';
-  recReason.textContent = S.rec.reason + conf;
+
+  let allMatch = true;
+  for (const k in diffs) {
+    const d = diffs[k];
+    if (!d.el) continue;
+    const lbl = d.el.querySelector('.rd-lbl').textContent;
+    const valEl = d.el.querySelector('.rd-val');
+    if (d.cur === d.rec) {
+      d.el.className = 'rec-diff match';
+      valEl.innerHTML = `<span class="cur">${d.cur}</span>`;
+    } else {
+      allMatch = false;
+      const dir = d.rec > d.cur ? 'up' : 'down';
+      d.el.className = 'rec-diff ' + dir;
+      valEl.innerHTML = `<span class="cur">${d.cur}</span><span class="arrow">→</span><span class="new">${d.rec}</span>`;
+    }
+  }
+
+  recConf.textContent = S.rec.confidence + ' confidence';
+  recConf.className = 'rec-conf ' + S.rec.confidence;
+  recReason.textContent = S.rec.reason;
+  btnApply.disabled = allMatch;
+  btnApply.textContent = allMatch ? 'Setup matches recommendation ✓' : 'Apply suggested setup';
 }
 
 function applyRecommendation() {
