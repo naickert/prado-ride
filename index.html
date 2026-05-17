@@ -155,7 +155,7 @@
   .pl-speed { text-align: right; color: #aaa; font-variant-numeric: tabular-nums; }
   .pl-mark  { text-align: center; font-size: 14px; }
 
-  /* Speed-safety warning banner — must be unmissable */
+  /* Speed-safety / rollover warning banner — must be unmissable */
   .speed-warn {
     display: flex; align-items: center; gap: 10px;
     background: linear-gradient(135deg, #ff3b30, #c2241a);
@@ -164,6 +164,12 @@
     border: 1px solid rgba(255,255,255,0.15);
     box-shadow: 0 4px 16px rgba(255,59,48,0.4);
     animation: pulseWarn 1.6s infinite;
+  }
+  .speed-warn.warn-yellow {
+    background: linear-gradient(135deg, #ff9500, #c97300);
+    color: #1a1a1a;
+    box-shadow: 0 4px 16px rgba(255,149,0,0.4);
+    animation: none;
   }
   @keyframes pulseWarn {
     50% { box-shadow: 0 4px 24px rgba(255,59,48,0.7); }
@@ -406,6 +412,15 @@
       </div>
     </div>
 
+    <!-- Rollover risk warning -->
+    <div id="rolloverWarn" class="speed-warn hidden">
+      <span class="sw-icon">↺</span>
+      <div class="sw-body">
+        <div class="sw-head" id="rolloverHead">—</div>
+        <div class="sw-sub" id="rolloverSub">—</div>
+      </div>
+    </div>
+
     <!-- Comfort hero (Wk-RMS + bar) -->
     <div class="card hero-comfort">
       <div class="hero-row">
@@ -593,6 +608,8 @@ const S = {
   rollDeg: 0, pitchDeg: 0,
   rollMaxAbs: 0,
   latG: 0, latGMaxAbs: 0,
+  rolloverAlertUntil: 0,
+  rolloverPeakInWindow: 0,
 
   // Road type (from Overpass API)
   road: { class: 'unknown', tags: null, fetchedAt: 0, lat: null, lon: null },
@@ -622,6 +639,9 @@ const CLICK_MIN = 1, CLICK_MAX = 9;
 const PSI_MIN = 10, PSI_MAX = 50;
 const ROAD_LOOKUP_MIN_INTERVAL_MS = 30000;  // ≤2 req/min
 const WEATHER_LOOKUP_MIN_INTERVAL_MS = 600000; // 10 min
+const SSF_PRADO = 1.15; // Static Stability Factor for Prado 150 VX-L
+const RRI_WARN = 0.7;   // RRI = |latG|/SSF — yellow warn
+const RRI_CRIT = 0.9;   // hard alert
 
 // Persistence
 function loadTrips() {
@@ -1363,30 +1383,78 @@ function onGps(pos) {
   }
 }
 
-// Simple 2nd-order Butterworth high-pass @ 0.4 Hz (assumes ~60 Hz sample rate)
-// Removes DC + slow drift so RMS reflects vibration, not gravity residual.
-const HP = (() => {
-  // Coefficients for fc=0.4Hz, fs=60Hz, Q=0.707
-  const b0 = 0.97803048, b1 = -1.95606097, b2 = 0.97803048;
-  const a1 = -1.95557824, a2 = 0.95654369;
-  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+// Approximate ISO 2631-1 Wk frequency weighting (vertical seat acceleration).
+// Real Wk per ISO 2631 Annex A: peaks at 4-8 Hz (body sensitivity), rolls off
+// above and below. This implementation: 3-stage cascade (HP @ 0.4Hz + peaking @
+// 5Hz + LP @ 16Hz) designed for fs=60Hz via RBJ biquad cookbook. Not strictly
+// ISO-conforming but a vast improvement on a plain HP — gives ~Wk-shaped
+// response that under-weights high-frequency tyre roar relative to the body
+// comfort band.
+const WK = (() => {
+  // RBJ biquad cookbook helpers — designed at fs=60 Hz (browser nominal).
+  function hp(fc, fs, Q) {
+    const w = 2*Math.PI*fc/fs, c = Math.cos(w), s = Math.sin(w), a = s/(2*Q);
+    const b0 = (1+c)/2, b1 = -(1+c), b2 = (1+c)/2;
+    const a0 = 1+a, a1 = -2*c, a2 = 1-a;
+    return { b0:b0/a0, b1:b1/a0, b2:b2/a0, a1:a1/a0, a2:a2/a0 };
+  }
+  function lp(fc, fs, Q) {
+    const w = 2*Math.PI*fc/fs, c = Math.cos(w), s = Math.sin(w), a = s/(2*Q);
+    const b0 = (1-c)/2, b1 = 1-c, b2 = (1-c)/2;
+    const a0 = 1+a, a1 = -2*c, a2 = 1-a;
+    return { b0:b0/a0, b1:b1/a0, b2:b2/a0, a1:a1/a0, a2:a2/a0 };
+  }
+  function peak(fc, fs, Q, gainDb) {
+    const A = Math.pow(10, gainDb/40);
+    const w = 2*Math.PI*fc/fs, c = Math.cos(w), s = Math.sin(w), alpha = s/(2*Q);
+    const b0 = 1 + alpha*A, b1 = -2*c, b2 = 1 - alpha*A;
+    const a0 = 1 + alpha/A, a1 = -2*c, a2 = 1 - alpha/A;
+    return { b0:b0/a0, b1:b1/a0, b2:b2/a0, a1:a1/a0, a2:a2/a0 };
+  }
+  const FS = 60;
+  const sec = [
+    { coeff: hp(0.4, FS, 0.707), s: {x1:0,x2:0,y1:0,y2:0} },     // remove DC + slow drift
+    { coeff: peak(5.0, FS, 1.2, 3.5), s: {x1:0,x2:0,y1:0,y2:0} },// emphasize body band (4-8 Hz)
+    { coeff: lp(16.0, FS, 0.707), s: {x1:0,x2:0,y1:0,y2:0} },    // suppress tyre roar / harshness
+  ];
+  function step(x, c, st) {
+    const y = c.b0*x + c.b1*st.x1 + c.b2*st.x2 - c.a1*st.y1 - c.a2*st.y2;
+    st.x2 = st.x1; st.x1 = x; st.y2 = st.y1; st.y1 = y;
+    return y;
+  }
   return {
-    reset() { x1 = x2 = y1 = y2 = 0; },
-    filter(x) {
-      const y = b0*x + b1*x1 + b2*x2 - a1*y1 - a2*y2;
-      x2 = x1; x1 = x; y2 = y1; y1 = y;
-      return y;
-    }
+    reset() { sec.forEach(s => { s.s.x1=s.s.x2=s.s.y1=s.s.y2=0; }); },
+    filter(x) { let y = x; for (const s of sec) y = step(y, s.coeff, s.s); return y; },
   };
 })();
+// Backward-compatible alias
+const HP = WK;
 
 function onMotion(ev) {
   const now = performance.now();
-  // Track sample rate
+  // Track sample rate + detect long gaps (phone sleep / app backgrounded)
   if (S.lastSampleT) {
     const dt = (now - S.lastSampleT) / 1000;
-    const inst = 1 / dt;
-    S.sampleRateEMA = S.sampleRateEMA ? 0.95 * S.sampleRateEMA + 0.05 * inst : inst;
+    if (dt > 5) {
+      // Gap detected — log it on the trip + reset filter state
+      if (S.trip) {
+        if (!S.trip.gaps) S.trip.gaps = [];
+        S.trip.gaps.push({
+          startedAt: Date.now() - Math.round(dt * 1000),
+          endedAt: Date.now(),
+          durationS: Math.round(dt),
+        });
+      }
+      WK.reset();
+      S.wkRmsBuffer = [];
+      S.lastVdvT = null;
+      clearAlerts();
+      showAlert('warn', `Recording resumed after ${(dt/60).toFixed(1)} min gap (phone slept).`);
+      setTimeout(clearAlerts, 5000);
+    } else {
+      const inst = 1 / dt;
+      S.sampleRateEMA = S.sampleRateEMA ? 0.95 * S.sampleRateEMA + 0.05 * inst : inst;
+    }
   }
   S.lastSampleT = now;
   S.sampleCount++;
@@ -1636,12 +1704,22 @@ function stopTrip() {
     }
   }
   S.trip.endedAt = Date.now();
+  const _elapsedS = (S.trip.endedAt - S.trip.startedAt) / 1000;
+  const _gaps = S.trip.gaps || [];
+  const _gapS = _gaps.reduce((s, g) => s + g.durationS, 0);
+  const _recordedS = Math.max(0, _elapsedS - _gapS);
   S.trip.summary = {
-    durationS: (S.trip.endedAt - S.trip.startedAt) / 1000,
+    durationS: _elapsedS,
+    elapsedS: _elapsedS,
+    recordedS: _recordedS,
+    gapS: _gapS,
+    gapCount: _gaps.length,
+    qualityPct: _elapsedS > 0 ? Math.round(100 * _recordedS / _elapsedS) : 0,
     vdv: Math.pow(S.vdvSumPow4, 0.25),
     avgWkRms: meanWkRmsFromSamples(S.trip.samples),
     rollMaxDeg: S.rollMaxAbs,
     latGMax: S.latGMaxAbs,
+    rriMax: S.latGMaxAbs / SSF_PRADO,
     distanceKm: distanceFromGps(S.trip.gps),
     samples: S.trip.samples.length,
     gpsPoints: S.trip.gps.length,
@@ -1774,6 +1852,42 @@ function renderSpeedWarning() {
     `Ronny's rule: at ${minPsi} psi, stay under ${limit} km/h or air up. Sidewall heat → blowout risk.`;
 }
 
+function renderRolloverWarning() {
+  const banner = document.getElementById('rolloverWarn');
+  if (!banner) return;
+  const rri = Math.abs(S.latG) / SSF_PRADO;
+  const now = Date.now();
+  if (rri >= RRI_WARN) S.rolloverAlertUntil = now + 5000; // hysteresis: hold visible 5s
+  if (!S.rolloverAlertUntil || now > S.rolloverAlertUntil) {
+    banner.classList.add('hidden');
+    banner.classList.remove('warn-yellow');
+    S.rolloverPeakInWindow = 0;
+    return;
+  }
+  banner.classList.remove('hidden');
+  const peak = Math.max(rri, S.rolloverPeakInWindow || 0);
+  S.rolloverPeakInWindow = peak;
+  if (rri < RRI_WARN) {
+    const ttl = Math.max(0, Math.round((S.rolloverAlertUntil - now) / 1000));
+    document.getElementById('rolloverHead').textContent =
+      `Hard cornering · peak RRI ${peak.toFixed(2)} — easing off`;
+    document.getElementById('rolloverSub').textContent =
+      `Banner clears in ${ttl}s. Stability margin = 1 − RRI = ${(1 - peak).toFixed(2)}.`;
+  } else if (peak >= RRI_CRIT) {
+    banner.classList.remove('warn-yellow');
+    document.getElementById('rolloverHead').textContent =
+      `ROLLOVER RISK · RRI ${peak.toFixed(2)} — SLOW + STRAIGHTEN`;
+    document.getElementById('rolloverSub').textContent =
+      `Lateral ${S.latG.toFixed(2)}g · Prado SSF ${SSF_PRADO}. Lift off, reduce steering input.`;
+  } else {
+    banner.classList.add('warn-yellow');
+    document.getElementById('rolloverHead').textContent =
+      `LEANING HARD · RRI ${peak.toFixed(2)} — ease off`;
+    document.getElementById('rolloverSub').textContent =
+      `Lateral ${S.latG.toFixed(2)}g · ${(100*(1-peak)).toFixed(0)}% stability margin left.`;
+  }
+}
+
 function comfortLabel(rms) {
   if (rms < 0.315) return ['Comfortable', 5];
   if (rms < 0.5)   return ['A little uncomfortable', 20];
@@ -1795,6 +1909,7 @@ function renderLive() {
     `${S.rollDeg.toFixed(0)}/${S.pitchDeg.toFixed(0)}°`;
   document.getElementById('latG').textContent = S.latG.toFixed(2);
   renderSpeedWarning();
+  renderRolloverWarning();
 }
 
 function renderTrips() {
@@ -1807,7 +1922,13 @@ function renderTrips() {
   for (const t of S.trips) {
     const s = t.summary || {};
     const d = new Date(t.startedAt);
-    const dur = s.durationS ? `${(s.durationS/60).toFixed(1)} min` : '—';
+    const elapsedMin = (s.elapsedS != null ? s.elapsedS : (s.durationS || 0)) / 60;
+    const recMin = (s.recordedS != null ? s.recordedS : (s.durationS || 0)) / 60;
+    const qual = s.qualityPct != null ? s.qualityPct : 100;
+    const durBadge = qual < 90
+      ? `<span style="color:#ff9500;">${recMin.toFixed(0)}m of ${elapsedMin.toFixed(0)}m (${qual}%)</span>`
+      : `${elapsedMin.toFixed(1)} min`;
+    const rriMax = s.rriMax != null ? s.rriMax : (s.latGMax || 0) / SSF_PRADO;
     const div = document.createElement('div');
     div.className = 'trip-item';
     div.innerHTML = `
@@ -1816,12 +1937,12 @@ function renderTrips() {
         <div class="meta">F${t.click.front}/R${t.click.rear} · ${t.psi?(t.psi.front+'/'+t.psi.rear+' psi'):''}</div>
       </div>
       <div class="stats">
-        <span>${dur}</span>
+        <span>${durBadge}</span>
         <span>${(s.distanceKm||0).toFixed(1)} km</span>
         <span>Wk ${(s.avgWkRms||0).toFixed(2)}</span>
         <span>VDV ${(s.vdv||0).toFixed(2)}</span>
         <span>Roll ${(s.rollMaxDeg||0).toFixed(0)}°</span>
-        <span>Lat ${(s.latGMax||0).toFixed(2)}g</span>
+        <span>RRI ${rriMax.toFixed(2)}</span>
       </div>
       <div style="display:flex;gap:8px;margin-top:8px;">
         <button class="ghost" onclick="exportTrip(${t.id})">Export JSON</button>
@@ -1938,10 +2059,44 @@ function exportTrip(id) {
 }
 function exportTripCsv(id) {
   const t = S.trips.find(x => x.id === id); if (!t) return;
-  const head = 't,ax_v,ay_v,az_v,roll,pitch\n';
-  const rows = t.samples.map(s =>
-    `${s.t},${s.ax_v.toFixed(4)},${s.ay_v.toFixed(4)},${s.az_v.toFixed(4)},${s.roll.toFixed(2)},${s.pitch.toFixed(2)}`
-  ).join('\n');
+  // Pre-sort lookup tables for fast joins on hundreds of thousands of samples
+  const gps = (t.gps || []).slice().sort((a, b) => a.t - b.t);
+  const gpsTs = gps.map(g => g.t);
+  const adj = (t.adjustments || []).slice().sort((a, b) => a.t - b.t);
+  function nearestGps(ts) {
+    if (!gpsTs.length) return null;
+    let lo = 0, hi = gpsTs.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (gpsTs[mid] <= ts) lo = mid; else hi = mid - 1;
+    }
+    const a = gps[lo], b = gps[lo + 1] || a;
+    return Math.abs(b.t - ts) < Math.abs(a.t - ts) ? b : a;
+  }
+  let adjIdx = 0;
+  function adjustmentAt(ts) {
+    while (adjIdx + 1 < adj.length && adj[adjIdx + 1].t <= ts) adjIdx++;
+    return adj[adjIdx] || null;
+  }
+  const head = 't,ax_v,ay_v,az_v,roll,pitch,lat,lon,speed_kmh,road,click_f,click_r,psi_f,psi_r\n';
+  const rows = t.samples.map(s => {
+    const g = nearestGps(s.t);
+    const a = adjustmentAt(s.t);
+    const speed_kmh = g && g.speed != null && g.speed >= 0 ? (g.speed * 3.6).toFixed(1) : '';
+    return [
+      s.t,
+      s.ax_v.toFixed(4), s.ay_v.toFixed(4), s.az_v.toFixed(4),
+      s.roll.toFixed(2), s.pitch.toFixed(2),
+      g ? g.lat.toFixed(6) : '',
+      g ? g.lon.toFixed(6) : '',
+      speed_kmh,
+      g ? (g.road || '') : '',
+      a ? a.front : '',
+      a ? a.rear : '',
+      a ? a.psiF : '',
+      a ? a.psiR : '',
+    ].join(',');
+  }).join('\n');
   download(`prado-trip-${id}.csv`, head + rows, 'text/csv');
 }
 function deleteTrip(id) {
