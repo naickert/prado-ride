@@ -134,6 +134,45 @@
   .card + .card, .badge-row + .badge-detail, .stats-strip { margin-top: 6px; }
   .card .label { font-size: 10px; letter-spacing: 0.05em; }
 
+  /* Pressure ladder (Settings) */
+  .pl-row {
+    display: grid; grid-template-columns: 80px 1fr 70px 20px;
+    align-items: center; gap: 8px;
+    padding: 8px 10px; border-radius: 8px; margin-top: 4px;
+    font-size: 12px; border: 1px solid transparent;
+    background: rgba(255,255,255,0.03);
+  }
+  .pl-row.b-highway  { background: rgba(52,199,89,0.10); }
+  .pl-row.b-town     { background: rgba(52,199,89,0.06); }
+  .pl-row.b-corrug   { background: rgba(255,204,0,0.10); }
+  .pl-row.b-gravel   { background: rgba(255,204,0,0.14); }
+  .pl-row.b-general  { background: rgba(255,149,0,0.12); }
+  .pl-row.b-tech     { background: rgba(255,149,0,0.18); }
+  .pl-row.b-emerg    { background: rgba(255,59,48,0.18); }
+  .pl-row.active     { border-color: #ff9500; box-shadow: 0 0 0 1px rgba(255,149,0,0.4); }
+  .pl-psi   { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .pl-desc  { color: #ddd; }
+  .pl-speed { text-align: right; color: #aaa; font-variant-numeric: tabular-nums; }
+  .pl-mark  { text-align: center; font-size: 14px; }
+
+  /* Speed-safety warning banner — must be unmissable */
+  .speed-warn {
+    display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(135deg, #ff3b30, #c2241a);
+    color: #fff; padding: 10px 12px; border-radius: 11px;
+    margin-bottom: 8px;
+    border: 1px solid rgba(255,255,255,0.15);
+    box-shadow: 0 4px 16px rgba(255,59,48,0.4);
+    animation: pulseWarn 1.6s infinite;
+  }
+  @keyframes pulseWarn {
+    50% { box-shadow: 0 4px 24px rgba(255,59,48,0.7); }
+  }
+  .sw-icon { font-size: 22px; line-height: 1; }
+  .sw-body { flex: 1; min-width: 0; }
+  .sw-head { font-size: 13px; font-weight: 700; letter-spacing: 0.02em; }
+  .sw-sub  { font-size: 12px; opacity: 0.92; margin-top: 2px; }
+
   /* Comfort hero */
   .hero-comfort {
     padding: 12px 14px 14px;
@@ -358,6 +397,15 @@
   <div class="view hidden" id="view-live">
     <div id="liveAlerts"></div>
 
+    <!-- Speed-safety warning (hidden until current speed exceeds psi limit) -->
+    <div id="speedWarn" class="speed-warn hidden">
+      <span class="sw-icon">⚠</span>
+      <div class="sw-body">
+        <div class="sw-head" id="speedWarnHead">SLOW DOWN — TYRE PRESSURE TOO LOW FOR SPEED</div>
+        <div class="sw-sub" id="speedWarnSub">—</div>
+      </div>
+    </div>
+
     <!-- Comfort hero (Wk-RMS + bar) -->
     <div class="card hero-comfort">
       <div class="hero-row">
@@ -453,13 +501,15 @@
         285/70R17 mud-terrain<br>
         SSF ≈ 1.15 (track 1605mm, CoG ~770mm)
       </div>
-      <label style="display:flex; align-items:center; gap:10px; margin-top:14px; padding:8px; background:#1c1c1e; border-radius:8px;">
-        <input type="checkbox" id="ladenToggle" style="width:20px; height:20px;">
-        <div style="flex:1;">
-          <div style="font-size:14px; font-weight:600;">Laden mode</div>
-          <div style="font-size:12px; color:#aaa;">Roof tent / drawers / trailer fitted — biases rear setup firmer.</div>
+      <div style="margin-top:14px; padding:8px; background:#1c1c1e; border-radius:8px;">
+        <div style="font-size:14px; font-weight:600; margin-bottom:6px;">Vehicle load</div>
+        <div style="display:flex; gap:6px;" id="loadStatePicker">
+          <button data-load="unladen" class="ghost mini" style="flex:1;">Unladen</button>
+          <button data-load="day" class="ghost mini" style="flex:1;">Day load</button>
+          <button data-load="fully" class="ghost mini" style="flex:1;">Fully loaded</button>
         </div>
-      </label>
+        <div style="font-size:11px; color:#888; margin-top:6px;" id="loadStateHelp">—</div>
+      </div>
       <div style="margin-top:10px; padding:8px; background:#1c1c1e; border-radius:8px;">
         <div style="font-size:14px; font-weight:600; margin-bottom:6px;">Pressure units</div>
         <div style="display:flex; gap:6px;" id="psiUnitPicker">
@@ -479,6 +529,14 @@
         <b>Calibration</b> — done at trip start while stationary, using gravity to find vertical and GPS course to find longitudinal.<br><br>
         Sample rate: ~60 Hz (browser-limited). Native Swift app would hit 800 Hz.
       </div>
+    </details>
+    <details>
+      <summary>Pressure ladder (Ronny Dahl's rule of thumb)</summary>
+      <div style="margin-top:8px; color:#aaa; font-size:12px;">
+        Below ~35 psi the tyre sidewall flexes more — at speed it builds heat fast. Lower psi means lower max safe speed. The app will warn you if you're going faster than this band allows.
+      </div>
+      <div id="pressureLadder" style="margin-top:10px;"></div>
+      <div style="margin-top:6px; color:#888; font-size:11px;">Indicator marks the band for your lower tyre (front or rear). Toggle units above. Adapted from Ronny Dahl's 4WD pressure ladder.</div>
     </details>
     <details>
       <summary>Learning (Bayesian recommender)</summary>
@@ -546,7 +604,7 @@ const S = {
 
   // Recommendation
   rec: null,           // { click:{front,rear}, psi:{front,rear}, reason, confidence }
-  laden: false,        // user toggle, persisted
+  loadState: 'unladen', // 'unladen' | 'day' | 'fully'
 
   // Speed (km/h, smoothed)
   speedKmh: null,
@@ -612,6 +670,7 @@ function refreshPressureDisplay() {
   document.getElementById('psiRear').textContent = formatPressure(S.psi.rear);
   document.querySelectorAll('.psi-munit').forEach(el => el.textContent = pressureUnitLabel());
   renderRecommendation();
+  renderPressureLadder();
 }
 
 // ============================================================================
@@ -938,11 +997,17 @@ function computeRecommendation() {
     rec.click.rear  = clampClick(rec.click.rear + 1);
     notes.push(`Speed ${Math.round(S.speedKmh)} km/h — +1 click for stability.`);
   }
-  // Laden bias
-  if (S.laden) {
+  // Load state bias — based on Ronny Dahl's loaded-highway band (up to 55 psi)
+  if (S.loadState === 'day') {
     rec.click.rear = clampClick(rec.click.rear + 1);
-    rec.psi.rear += road.includes('sealed') ? 4 : 2;
-    notes.push('Laden — +1 rear click, +rear psi for load.');
+    rec.psi.rear += road.includes('sealed') ? 2 : 1;
+    notes.push('Day load — +1 rear click, slight rear psi bump for the extra weight.');
+  } else if (S.loadState === 'fully') {
+    rec.click.front = clampClick(rec.click.front + 1);
+    rec.click.rear  = clampClick(rec.click.rear + 2);
+    rec.psi.front += road.includes('sealed') ? 4 : 1;
+    rec.psi.rear  += road.includes('sealed') ? 10 : 3;
+    notes.push('Fully loaded — heavy tourer kit, +rear click, +rear psi up toward Ronny\'s loaded highway band.');
   }
   // Vibration overshoot adjustment (opposite polarity on sealed vs unsealed)
   if (S.wkRms > 0 && S.recording) {
@@ -1070,11 +1135,20 @@ function applyRecommendation() {
 }
 
 // Persistence helpers
-function loadLaden() {
-  try { S.laden = JSON.parse(localStorage.getItem('prado.laden') || 'false'); } catch {}
+function loadLoadState() {
+  // Migrate old boolean prado.laden -> new enum
+  const newKey = localStorage.getItem('prado.loadState');
+  if (newKey === 'unladen' || newKey === 'day' || newKey === 'fully') {
+    S.loadState = newKey;
+    return;
+  }
+  try {
+    const oldLaden = JSON.parse(localStorage.getItem('prado.laden') || 'false');
+    S.loadState = oldLaden ? 'fully' : 'unladen';
+  } catch { S.loadState = 'unladen'; }
 }
-function saveLaden() {
-  localStorage.setItem('prado.laden', JSON.stringify(S.laden));
+function saveLoadState() {
+  localStorage.setItem('prado.loadState', S.loadState);
 }
 
 // ============================================================================
@@ -1672,6 +1746,34 @@ function renderClickPickers() {
   }
 }
 
+// Ronny Dahl's pressure ladder — max safe speed for a given psi (lower = slower)
+// Below ~35 psi the tyre sidewall flexes more, building heat → blowout risk at speed.
+function maxSafeSpeedKmh(psi) {
+  if (psi >= 35) return null; // highway-safe, no implied limit
+  if (psi >= 30) return 90;
+  if (psi >= 25) return 80;
+  if (psi >= 20) return 60;
+  if (psi >= 15) return 40;
+  return 30;
+}
+
+function renderSpeedWarning() {
+  const banner = document.getElementById('speedWarn');
+  if (!banner) return;
+  const minPsi = Math.min(S.psi.front, S.psi.rear);
+  const limit = maxSafeSpeedKmh(minPsi);
+  const speed = S.speedKmh;
+  if (limit == null || speed == null || speed <= limit + 3) { // 3 km/h grace for GPS jitter
+    banner.classList.add('hidden');
+    return;
+  }
+  banner.classList.remove('hidden');
+  document.getElementById('speedWarnHead').textContent =
+    `SLOW DOWN — ${Math.round(speed)} km/h is too fast for ${minPsi} psi`;
+  document.getElementById('speedWarnSub').textContent =
+    `Ronny's rule: at ${minPsi} psi, stay under ${limit} km/h or air up. Sidewall heat → blowout risk.`;
+}
+
 function comfortLabel(rms) {
   if (rms < 0.315) return ['Comfortable', 5];
   if (rms < 0.5)   return ['A little uncomfortable', 20];
@@ -1692,6 +1794,7 @@ function renderLive() {
   document.getElementById('rollPitch').textContent =
     `${S.rollDeg.toFixed(0)}/${S.pitchDeg.toFixed(0)}°`;
   document.getElementById('latG').textContent = S.latG.toFixed(2);
+  renderSpeedWarning();
 }
 
 function renderTrips() {
@@ -1759,8 +1862,43 @@ function renderLearningStats() {
   el.innerHTML = html;
 }
 
+const PRESSURE_LADDER = [
+  { min: 40, max: 55, key: 'b-highway', desc: 'Loaded highway',          maxSpeed: null },
+  { min: 35, max: 45, key: 'b-town',    desc: 'Town / light driving',    maxSpeed: null },
+  { min: 30, max: 35, key: 'b-corrug',  desc: 'Corrugations',            maxSpeed: 90 },
+  { min: 25, max: 30, key: 'b-gravel',  desc: 'Slower gravel',           maxSpeed: 80 },
+  { min: 20, max: 25, key: 'b-general', desc: 'General 4WD',             maxSpeed: 60 },
+  { min: 10, max: 20, key: 'b-tech',    desc: 'Technical / sand',        maxSpeed: 40 },
+  { min: 0,  max: 10, key: 'b-emerg',   desc: 'Emergency bogged only',   maxSpeed: 30 },
+];
+function renderPressureLadder() {
+  const el = document.getElementById('pressureLadder');
+  if (!el) return;
+  const userPsi = Math.min(S.psi.front, S.psi.rear);
+  el.innerHTML = '';
+  for (const band of PRESSURE_LADDER) {
+    const active = (userPsi >= band.min && userPsi < band.max) ||
+                   (band === PRESSURE_LADDER[0] && userPsi >= band.min); // top band catches >=40
+    const psiRange = `${band.min}–${band.max - 1}`;
+    const psiRangeDisp = S.psiUnit === 'psi'
+      ? `${psiRange} psi`
+      : `${formatPressure(band.min)}–${formatPressure(band.max - 1)} ${pressureUnitLabel()}`;
+    const speedTxt = band.maxSpeed ? `< ${band.maxSpeed} km/h` : 'highway';
+    const row = document.createElement('div');
+    row.className = 'pl-row ' + band.key + (active ? ' active' : '');
+    row.innerHTML = `
+      <div class="pl-psi">${psiRangeDisp}</div>
+      <div class="pl-desc">${band.desc}</div>
+      <div class="pl-speed">${speedTxt}</div>
+      <div class="pl-mark">${active ? '◆' : ''}</div>
+    `;
+    el.appendChild(row);
+  }
+}
+
 function renderDiag() {
   renderLearningStats();
+  renderPressureLadder();
   document.getElementById('diag').textContent = JSON.stringify({
     secureContext: window.isSecureContext,
     motion: S.perms.motion,
@@ -1856,7 +1994,7 @@ for (const t of document.querySelectorAll('.tab')) {
 loadClick();
 loadPsi();
 loadPsiUnit();
-loadLaden();
+loadLoadState();
 loadObservations();
 // Wire pressure unit picker
 function renderPsiUnitPicker() {
@@ -1875,9 +2013,26 @@ document.querySelectorAll('#psiUnitPicker button').forEach(b => {
 renderPsiUnitPicker();
 renderClickPickers();
 refreshPressureDisplay();
-const ladenEl = document.getElementById('ladenToggle');
-ladenEl.checked = S.laden;
-ladenEl.onchange = () => { S.laden = ladenEl.checked; saveLaden(); updateRecommendation(); };
+function renderLoadStatePicker() {
+  const helps = {
+    unladen: 'Daily-driver / empty boot. Default suspension setup.',
+    day: 'Day trip kit (small fridge, recovery gear, day bags). +1 rear click + small psi bump.',
+    fully: 'Heavy tourer (drawers, dual fridge, full water, trailer). Significantly firmer rear + Ronny\'s loaded highway psi.',
+  };
+  document.querySelectorAll('#loadStatePicker button').forEach(b => {
+    b.classList.toggle('sel', b.dataset.load === S.loadState);
+  });
+  document.getElementById('loadStateHelp').textContent = helps[S.loadState];
+}
+document.querySelectorAll('#loadStatePicker button').forEach(b => {
+  b.onclick = () => {
+    S.loadState = b.dataset.load;
+    saveLoadState();
+    renderLoadStatePicker();
+    updateRecommendation();
+  };
+});
+renderLoadStatePicker();
 renderRoad();
 renderWeather();
 renderRecommendation();
