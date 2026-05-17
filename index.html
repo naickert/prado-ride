@@ -251,6 +251,7 @@
   .setup-card .click-pick { gap: 3px; }
   .setup-card .click-pick button { height: 26px; font-size: 12px; }
   .ghost.mini { padding: 2px 10px; font-size: 13px; min-width: 30px; min-height: 26px; line-height: 1; }
+  .ghost.mini.sel { background: #ff9500; color: #000; border-color: #ff9500; }
 
   /* Compact PSI pair */
   .psi-row-pair {
@@ -459,6 +460,15 @@
           <div style="font-size:12px; color:#aaa;">Roof tent / drawers / trailer fitted — biases rear setup firmer.</div>
         </div>
       </label>
+      <div style="margin-top:10px; padding:8px; background:#1c1c1e; border-radius:8px;">
+        <div style="font-size:14px; font-weight:600; margin-bottom:6px;">Pressure units</div>
+        <div style="display:flex; gap:6px;" id="psiUnitPicker">
+          <button data-unit="psi" class="ghost mini" style="flex:1;">psi</button>
+          <button data-unit="kpa" class="ghost mini" style="flex:1;">kPa</button>
+          <button data-unit="bar" class="ghost mini" style="flex:1;">bar</button>
+        </div>
+        <div style="font-size:11px; color:#888; margin-top:4px;">1 psi = 6.895 kPa = 0.069 bar. Stored internally as psi; converted on display.</div>
+      </div>
     </details>
     <details>
       <summary>About the metrics</summary>
@@ -509,6 +519,7 @@ const S = {
   trips: loadTrips(),
   click: { front: 5, rear: 5 },
   psi: { front: 38, rear: 36 },
+  psiUnit: 'psi', // 'psi' | 'kpa' | 'bar' — display only; internal storage always in PSI
   calibration: null,        // { R: 3x3 phone→vehicle, gravMag }
   calibBuffer: [],          // gravity samples during calibration
   lastGps: null,
@@ -579,6 +590,28 @@ function loadPsi() {
 }
 function savePsi() {
   localStorage.setItem('prado.psi', JSON.stringify(S.psi));
+}
+function loadPsiUnit() {
+  const u = localStorage.getItem('prado.psiUnit');
+  if (u === 'psi' || u === 'kpa' || u === 'bar') S.psiUnit = u;
+}
+function savePsiUnit() {
+  localStorage.setItem('prado.psiUnit', S.psiUnit);
+}
+// Internal storage is always in PSI. These helpers convert to display.
+function formatPressure(psi) {
+  if (S.psiUnit === 'kpa') return String(Math.round(psi * 6.89476));
+  if (S.psiUnit === 'bar') return (psi * 0.0689476).toFixed(2);
+  return String(psi);
+}
+function pressureUnitLabel() {
+  return S.psiUnit === 'kpa' ? 'kPa' : S.psiUnit === 'bar' ? 'bar' : 'psi';
+}
+function refreshPressureDisplay() {
+  document.getElementById('psiFront').textContent = formatPressure(S.psi.front);
+  document.getElementById('psiRear').textContent = formatPressure(S.psi.rear);
+  document.querySelectorAll('.psi-munit').forEach(el => el.textContent = pressureUnitLabel());
+  renderRecommendation();
 }
 
 // ============================================================================
@@ -959,12 +992,14 @@ function renderRecommendation() {
   const recConf = document.getElementById('recConf');
   const btnApply = document.getElementById('btnApplyRec');
   const setupSummary = document.getElementById('setupSummary');
-  if (setupSummary) setupSummary.textContent = `F${S.click.front}/R${S.click.rear} · ${S.psi.front}/${S.psi.rear} psi`;
+  if (setupSummary) setupSummary.textContent = `F${S.click.front}/R${S.click.rear} · ${formatPressure(S.psi.front)}/${formatPressure(S.psi.rear)} ${pressureUnitLabel()}`;
+  const fmt = v => v;
+  const fmtP = v => formatPressure(v);
   const diffs = {
-    clickF: { el: document.getElementById('diffClickF'), cur: S.click.front, rec: S.rec?.click.front, suffix: '' },
-    clickR: { el: document.getElementById('diffClickR'), cur: S.click.rear,  rec: S.rec?.click.rear,  suffix: '' },
-    psiF:   { el: document.getElementById('diffPsiF'),   cur: S.psi.front,   rec: S.rec?.psi.front,   suffix: '' },
-    psiR:   { el: document.getElementById('diffPsiR'),   cur: S.psi.rear,    rec: S.rec?.psi.rear,    suffix: '' },
+    clickF: { el: document.getElementById('diffClickF'), cur: S.click.front, rec: S.rec?.click.front, lbl: 'Click F', fmt },
+    clickR: { el: document.getElementById('diffClickR'), cur: S.click.rear,  rec: S.rec?.click.rear,  lbl: 'Click R', fmt },
+    psiF:   { el: document.getElementById('diffPsiF'),   cur: S.psi.front,   rec: S.rec?.psi.front,   lbl: `F ${pressureUnitLabel()}`, fmt: fmtP },
+    psiR:   { el: document.getElementById('diffPsiR'),   cur: S.psi.rear,    rec: S.rec?.psi.rear,    lbl: `R ${pressureUnitLabel()}`, fmt: fmtP },
   };
   if (!recReason) return;
 
@@ -973,7 +1008,8 @@ function renderRecommendation() {
       const d = diffs[k];
       if (!d.el) continue;
       d.el.className = 'rec-diff';
-      d.el.querySelector('.rd-val').innerHTML = `<span class="cur">${d.cur}</span>`;
+      d.el.querySelector('.rd-lbl').textContent = d.lbl;
+      d.el.querySelector('.rd-val').innerHTML = `<span class="cur">${d.fmt(d.cur)}</span>`;
     }
     recReason.textContent = S.road.class === 'unknown'
       ? 'Waiting for GPS + road class.'
@@ -989,16 +1025,16 @@ function renderRecommendation() {
   for (const k in diffs) {
     const d = diffs[k];
     if (!d.el) continue;
-    const lbl = d.el.querySelector('.rd-lbl').textContent;
+    d.el.querySelector('.rd-lbl').textContent = d.lbl;
     const valEl = d.el.querySelector('.rd-val');
     if (d.cur === d.rec) {
       d.el.className = 'rec-diff match';
-      valEl.innerHTML = `<span class="cur">${d.cur}</span>`;
+      valEl.innerHTML = `<span class="cur">${d.fmt(d.cur)}</span>`;
     } else {
       allMatch = false;
       const dir = d.rec > d.cur ? 'up' : 'down';
       d.el.className = 'rec-diff ' + dir;
-      valEl.innerHTML = `<span class="cur">${d.cur}</span><span class="arrow">→</span><span class="new">${d.rec}</span>`;
+      valEl.innerHTML = `<span class="cur">${d.fmt(d.cur)}</span><span class="arrow">→</span><span class="new">${d.fmt(d.rec)}</span>`;
     }
   }
 
@@ -1020,9 +1056,7 @@ function applyRecommendation() {
   S.psi = { ...S.rec.psi };
   saveClick(); savePsi();
   renderClickPickers();
-  document.getElementById('psiFront').textContent = S.psi.front;
-  document.getElementById('psiRear').textContent = S.psi.rear;
-  renderRecommendation();
+  refreshPressureDisplay();
   if (S.trip) {
     S.trip.adjustments.push({
       t: Date.now(),
@@ -1031,7 +1065,7 @@ function applyRecommendation() {
       note: 'applied recommendation',
     });
   }
-  showAlert('info', `Applied · Click F${S.click.front}/R${S.click.rear} · ${S.psi.front}/${S.psi.rear} psi`);
+  showAlert('info', `Applied · F${S.click.front}/R${S.click.rear} · ${formatPressure(S.psi.front)}/${formatPressure(S.psi.rear)} ${pressureUnitLabel()}`);
   setTimeout(clearAlerts, 2500);
 }
 
@@ -1597,13 +1631,13 @@ function logAdjustment() {
     psiF: S.psi.front, psiR: S.psi.rear,
     note: ''
   });
-  showAlert('info', `Logged · Click F${S.click.front}/R${S.click.rear} · ${S.psi.front}/${S.psi.rear} psi`);
+  showAlert('info', `Logged · F${S.click.front}/R${S.click.rear} · ${formatPressure(S.psi.front)}/${formatPressure(S.psi.rear)} ${pressureUnitLabel()}`);
   setTimeout(clearAlerts, 2500);
 }
 
 function adjustPsi(which, delta) {
   S.psi[which] = Math.max(PSI_MIN, Math.min(PSI_MAX, S.psi[which] + delta));
-  document.getElementById('psi' + which.charAt(0).toUpperCase() + which.slice(1)).textContent = S.psi[which];
+  document.getElementById('psi' + which.charAt(0).toUpperCase() + which.slice(1)).textContent = formatPressure(S.psi[which]);
   savePsi();
   renderRecommendation();
 }
@@ -1821,11 +1855,26 @@ for (const t of document.querySelectorAll('.tab')) {
 // Init
 loadClick();
 loadPsi();
+loadPsiUnit();
 loadLaden();
 loadObservations();
+// Wire pressure unit picker
+function renderPsiUnitPicker() {
+  document.querySelectorAll('#psiUnitPicker button').forEach(b => {
+    b.classList.toggle('sel', b.dataset.unit === S.psiUnit);
+  });
+}
+document.querySelectorAll('#psiUnitPicker button').forEach(b => {
+  b.onclick = () => {
+    S.psiUnit = b.dataset.unit;
+    savePsiUnit();
+    renderPsiUnitPicker();
+    refreshPressureDisplay();
+  };
+});
+renderPsiUnitPicker();
 renderClickPickers();
-document.getElementById('psiFront').textContent = S.psi.front;
-document.getElementById('psiRear').textContent = S.psi.rear;
+refreshPressureDisplay();
 const ladenEl = document.getElementById('ladenToggle');
 ladenEl.checked = S.laden;
 ladenEl.onchange = () => { S.laden = ladenEl.checked; saveLaden(); updateRecommendation(); };
