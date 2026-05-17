@@ -276,7 +276,10 @@
   .psi-mini .psi-munit { font-size: 9px; color: #888; font-weight: 400; margin-left: 2px; }
 
   /* Compact controls */
-  .controls { gap: 8px; margin-top: 10px; }
+  .controls {
+    gap: 8px; margin-top: 10px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
   .controls button { min-height: 48px; border-radius: 12px; }
   .controls .ghost {
     flex: 0 0 80px; padding: 8px 10px; font-size: 13px;
@@ -399,10 +402,10 @@
     <!-- Compact click + psi controls -->
     <div class="card setup-card">
       <div class="setup-head">
-        <div class="label">Current setup</div>
-        <button class="ghost mini" id="btnToggleSetup">−</button>
+        <div class="label">Current setup · <span id="setupSummary" style="color:#888; font-weight:400;">F5/R5 · 38/36 psi</span></div>
+        <button class="ghost mini" id="btnToggleSetup">+</button>
       </div>
-      <div id="setupBody">
+      <div id="setupBody" class="hidden">
         <div class="click-row">
           <div class="click-lbl">Click F</div>
           <div class="click-pick" id="clickFront"></div>
@@ -955,6 +958,8 @@ function renderRecommendation() {
   const recReason = document.getElementById('recReason');
   const recConf = document.getElementById('recConf');
   const btnApply = document.getElementById('btnApplyRec');
+  const setupSummary = document.getElementById('setupSummary');
+  if (setupSummary) setupSummary.textContent = `F${S.click.front}/R${S.click.rear} · ${S.psi.front}/${S.psi.rear} psi`;
   const diffs = {
     clickF: { el: document.getElementById('diffClickF'), cur: S.click.front, rec: S.rec?.click.front, suffix: '' },
     clickR: { el: document.getElementById('diffClickR'), cur: S.click.rear,  rec: S.rec?.click.rear,  suffix: '' },
