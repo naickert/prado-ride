@@ -128,6 +128,112 @@
   .road-badge.unknown { color: #888; }
   .road-detail { color: #aaa; font-size: 13px; flex: 1; min-width: 0; }
 
+  /* Compact layout overrides — fit one screen */
+  .view { padding: 10px; }
+  .card { padding: 8px 10px; border-radius: 11px; }
+  .card + .card, .badge-row + .badge-detail, .stats-strip { margin-top: 6px; }
+  .card .label { font-size: 10px; letter-spacing: 0.05em; }
+
+  /* Comfort hero */
+  .hero-comfort { padding: 10px 12px 12px; }
+  .hero-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .hero-val { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .hero-val .unit { font-size: 12px; color: #888; font-weight: 400; margin-left: 4px; }
+  .hero-label { font-size: 14px; color: #ccc; font-weight: 500; text-align: right; }
+  .hero-comfort .comfort-bar { margin-top: 10px; }
+
+  /* Badge row (road + weather) */
+  .badge-row {
+    display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;
+  }
+  .badge-row .road-badge, .badge-row .weather-badge {
+    flex: 1; text-align: center; padding: 8px 10px; font-size: 13px;
+    border-radius: 10px;
+  }
+  .weather-badge {
+    background: #1c1c1e; border: 1px solid #333; color: #fff; font-weight: 600;
+  }
+  .weather-badge.clear { background: #1d3557; color: #cce4ff; border-color: #2c5d8a; }
+  .weather-badge.cloudy { background: #2a2a2e; color: #ccc; border-color: #444; }
+  .weather-badge.light_rain { background: #2d4d5d; color: #bce4ff; border-color: #3d6d8a; }
+  .weather-badge.heavy_rain { background: #1c3548; color: #80c8ff; border-color: #2d5878; }
+  .weather-badge.snow { background: #e8e8e8; color: #000; border-color: #999; }
+  .weather-badge.unknown { color: #888; }
+  .badge-detail {
+    color: #aaa; font-size: 12px; margin-top: 6px; text-align: center;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  /* Stats strip */
+  .stats-strip {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+    background: #141414; border-radius: 12px; padding: 8px; border: 1px solid #222;
+  }
+  .stats-strip > div { text-align: center; }
+  .ss-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.06em; }
+  .ss-val { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; }
+
+  /* Recommendation hero */
+  .rec-card { background: linear-gradient(145deg, #1a1a1f, #141414); border-color: #2a2a30; }
+  .rec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .rec-apply {
+    background: #ff9500; color: #000; border: none; padding: 6px 14px;
+    border-radius: 8px; font-size: 13px; font-weight: 600;
+  }
+  .rec-apply:disabled { background: #333; color: #777; }
+  .rec-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;
+  }
+  .rec-cell {
+    background: #0c0c0e; border-radius: 10px; padding: 8px 10px;
+    border: 1px solid #2a2a30;
+  }
+  .rec-sub { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+  .rec-val { font-size: 22px; font-weight: 700; color: #ff9500; font-variant-numeric: tabular-nums; }
+  .rec-val.matches { color: #34c759; }
+  .rec-cur { font-size: 11px; color: #888; margin-top: 2px; }
+  .rec-reason {
+    margin-top: 8px; font-size: 12px; color: #bbb; line-height: 1.35;
+  }
+
+  /* Compact setup card */
+  .setup-card { padding: 8px 10px 10px; }
+  .setup-head { display: flex; align-items: center; justify-content: space-between; }
+  .setup-card .click-row { margin-top: 4px; gap: 8px; }
+  .setup-card .click-row > .click-lbl { width: 44px; font-size: 11px; }
+  .setup-card .click-pick { gap: 3px; }
+  .setup-card .click-pick button { height: 26px; font-size: 12px; }
+  .ghost.mini { padding: 2px 10px; font-size: 13px; min-width: 30px; min-height: 26px; line-height: 1; }
+
+  /* Compact PSI pair */
+  .psi-row-pair {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px;
+  }
+  .psi-mini {
+    display: flex; align-items: center; gap: 4px;
+    background: #1c1c1e; border-radius: 8px; padding: 3px 5px;
+    border: 1px solid #2a2a2e;
+  }
+  .psi-mini .psi-mlbl {
+    width: 14px; text-align: center; font-size: 11px; color: #aaa; font-weight: 600;
+  }
+  .psi-mini button {
+    width: 26px; height: 26px; padding: 0; border-radius: 5px;
+    background: #2a2a2e; color: #fff; border: 1px solid #3a3a3e;
+    font-size: 16px; font-weight: 700; line-height: 1;
+  }
+  .psi-mini .psi-mval {
+    flex: 1; text-align: center; font-size: 15px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .psi-mini .psi-munit { font-size: 9px; color: #888; font-weight: 400; margin-left: 2px; }
+
+  /* Compact controls */
+  .controls { gap: 8px; margin-top: 8px; }
+  .controls button { min-height: 42px; }
+  .controls .ghost { flex: 0 0 80px; padding: 8px 10px; }
+  .controls .primary { padding: 10px 18px; font-size: 16px; }
+
   /* Trip list */
   .trip-item {
     padding: 14px; background: #141414; border-radius: 12px;
@@ -165,7 +271,10 @@
 
   <div class="topbar">
     <div class="title"><span class="dot" id="liveDot"></span> Prado Ride</div>
-    <div id="speedDisplay" style="font-variant-numeric: tabular-nums; color:#aaa; font-size: 14px;">—</div>
+    <div style="display:flex; gap:10px; align-items:center; font-variant-numeric: tabular-nums; color:#aaa; font-size: 14px;">
+      <span id="tempDisplay">—°</span>
+      <span id="speedDisplay">— km/h</span>
+    </div>
   </div>
 
   <div class="tabs">
@@ -192,66 +301,80 @@
   <div class="view hidden" id="view-live">
     <div id="liveAlerts"></div>
 
-    <div class="live-grid">
-      <div class="card">
-        <div class="label">Comfort (Wk-RMS)</div>
-        <div class="value"><span id="wkRms">0.00</span><span class="unit">m/s²</span></div>
-        <div class="sub" id="wkRmsLabel">—</div>
+    <!-- Comfort hero (Wk-RMS + bar) -->
+    <div class="card hero-comfort">
+      <div class="hero-row">
+        <div>
+          <div class="label">Comfort · Wk-RMS</div>
+          <div class="hero-val"><span id="wkRms">0.00</span><span class="unit">m/s²</span></div>
+        </div>
+        <div class="hero-label" id="comfortText">—</div>
       </div>
-      <div class="card">
-        <div class="label">Cumulative VDV</div>
-        <div class="value"><span id="vdv">0.00</span><span class="unit">m/s^1.75</span></div>
-        <div class="sub" id="vdvLabel">Daily limit 8.5</div>
+      <div class="comfort-bar" style="--comfort-pos: 0%"></div>
+    </div>
+
+    <!-- Road + Weather badges -->
+    <div class="badge-row">
+      <span class="road-badge unknown" id="roadBadge">— locating —</span>
+      <span class="weather-badge unknown" id="weatherBadge">—</span>
+    </div>
+    <div class="badge-detail" id="contextDetail">Waiting for GPS fix…</div>
+
+    <!-- Stats strip -->
+    <div class="stats-strip">
+      <div><div class="ss-label">VDV</div><div class="ss-val"><span id="vdv">0.00</span></div></div>
+      <div><div class="ss-label">Roll/Pitch</div><div class="ss-val"><span id="rollPitch">0/0°</span></div></div>
+      <div><div class="ss-label">Lat g</div><div class="ss-val"><span id="latG">0.00</span></div></div>
+    </div>
+
+    <!-- Recommendation hero -->
+    <div class="card rec-card">
+      <div class="rec-head">
+        <div class="label">Recommended now</div>
+        <button class="rec-apply" id="btnApplyRec" disabled>Apply</button>
       </div>
-      <div class="card">
-        <div class="label">Roll / Pitch</div>
-        <div class="value"><span id="rollPitch">0° / 0°</span></div>
-        <div class="sub" id="rollMax">Peak 0°</div>
-      </div>
-      <div class="card">
-        <div class="label">Lateral g</div>
-        <div class="value"><span id="latG">0.00</span><span class="unit">g</span></div>
-        <div class="sub" id="latGMax">Peak 0.00</div>
-      </div>
-      <div class="card span-2">
-        <div class="label">Comfort</div>
-        <div class="comfort-bar" style="--comfort-pos: 0%"></div>
-        <div class="comfort-label" id="comfortText">— stationary —</div>
-      </div>
-      <div class="card span-2">
-        <div class="label">Road type</div>
-        <div class="road-type">
-          <span class="road-badge unknown" id="roadBadge">— locating —</span>
-          <div class="road-detail" id="roadDetail">Waiting for GPS fix…</div>
+      <div class="rec-grid">
+        <div class="rec-cell">
+          <div class="rec-sub">Clicks F/R</div>
+          <div class="rec-val"><span id="recClick">—/—</span></div>
+          <div class="rec-cur">now <span id="curClick">5/5</span></div>
+        </div>
+        <div class="rec-cell">
+          <div class="rec-sub">PSI F/R</div>
+          <div class="rec-val"><span id="recPsi">—/—</span></div>
+          <div class="rec-cur">now <span id="curPsi">38/36</span></div>
         </div>
       </div>
-      <div class="card span-2">
-        <div class="label">Current click setting</div>
+      <div class="rec-reason" id="recReason">Need GPS + road class to recommend.</div>
+    </div>
+
+    <!-- Compact click + psi controls -->
+    <div class="card setup-card">
+      <div class="setup-head">
+        <div class="label">Current setup</div>
+        <button class="ghost mini" id="btnToggleSetup">−</button>
+      </div>
+      <div id="setupBody">
         <div class="click-row">
-          <div class="click-lbl">Front</div>
+          <div class="click-lbl">Click F</div>
           <div class="click-pick" id="clickFront"></div>
         </div>
         <div class="click-row">
-          <div class="click-lbl">Rear</div>
+          <div class="click-lbl">Click R</div>
           <div class="click-pick" id="clickRear"></div>
         </div>
-      </div>
-      <div class="card span-2">
-        <div class="label">Tyre pressure</div>
-        <div class="psi-row">
-          <div class="psi-lbl">Front</div>
-          <div class="psi-stepper">
-            <button onclick="adjustPsi('front', -1)" aria-label="Decrease front">−</button>
-            <div class="psi-val"><span id="psiFront">38</span><span class="unit">psi</span></div>
-            <button onclick="adjustPsi('front', +1)" aria-label="Increase front">+</button>
+        <div class="psi-row-pair">
+          <div class="psi-mini">
+            <span class="psi-mlbl">F</span>
+            <button onclick="adjustPsi('front',-1)" aria-label="Decrease front psi">−</button>
+            <span class="psi-mval"><span id="psiFront">38</span><span class="psi-munit">psi</span></span>
+            <button onclick="adjustPsi('front',+1)" aria-label="Increase front psi">+</button>
           </div>
-        </div>
-        <div class="psi-row">
-          <div class="psi-lbl">Rear</div>
-          <div class="psi-stepper">
-            <button onclick="adjustPsi('rear', -1)" aria-label="Decrease rear">−</button>
-            <div class="psi-val"><span id="psiRear">36</span><span class="unit">psi</span></div>
-            <button onclick="adjustPsi('rear', +1)" aria-label="Increase rear">+</button>
+          <div class="psi-mini">
+            <span class="psi-mlbl">R</span>
+            <button onclick="adjustPsi('rear',-1)" aria-label="Decrease rear psi">−</button>
+            <span class="psi-mval"><span id="psiRear">36</span><span class="psi-munit">psi</span></span>
+            <button onclick="adjustPsi('rear',+1)" aria-label="Increase rear psi">+</button>
           </div>
         </div>
       </div>
@@ -259,7 +382,7 @@
 
     <div class="controls">
       <button class="primary" id="btnStart">Start trip</button>
-      <button class="ghost" id="btnCalibrate">Re-calibrate</button>
+      <button class="ghost" id="btnCalibrate">Re-cal</button>
     </div>
   </div>
 
@@ -278,6 +401,13 @@
         285/70R17 mud-terrain<br>
         SSF ≈ 1.15 (track 1605mm, CoG ~770mm)
       </div>
+      <label style="display:flex; align-items:center; gap:10px; margin-top:14px; padding:8px; background:#1c1c1e; border-radius:8px;">
+        <input type="checkbox" id="ladenToggle" style="width:20px; height:20px;">
+        <div style="flex:1;">
+          <div style="font-size:14px; font-weight:600;">Laden mode</div>
+          <div style="font-size:12px; color:#aaa;">Roof tent / drawers / trailer fitted — biases rear setup firmer.</div>
+        </div>
+      </label>
     </details>
     <details>
       <summary>About the metrics</summary>
@@ -339,12 +469,24 @@ const S = {
   // Road type (from Overpass API)
   road: { class: 'unknown', tags: null, fetchedAt: 0, lat: null, lon: null },
   roadBackoffUntil: 0,
+
+  // Weather (from Open-Meteo)
+  weather: { condition: 'unknown', tempC: null, precipMmLastHr: 0, windKph: null, willRainSoon: false, fetchedAt: 0 },
+  weatherBackoffUntil: 0,
+
+  // Recommendation
+  rec: null,           // { click:{front,rear}, psi:{front,rear}, reason, confidence }
+  laden: false,        // user toggle, persisted
+
+  // Speed (km/h, smoothed)
+  speedKmh: null,
 };
 const SAMPLE_HZ_NOMINAL = 60;
 const G = 9.80665;
 const CLICK_MIN = 1, CLICK_MAX = 9;
 const PSI_MIN = 10, PSI_MAX = 50;
-const ROAD_LOOKUP_MIN_INTERVAL_MS = 30000; // ≤2 req/min
+const ROAD_LOOKUP_MIN_INTERVAL_MS = 30000;  // ≤2 req/min
+const WEATHER_LOOKUP_MIN_INTERVAL_MS = 600000; // 10 min
 
 // Persistence
 function loadTrips() {
@@ -450,7 +592,7 @@ async function maybeUpdateRoad(pos) {
   const hit = roadCacheGet(lat, lon);
   if (hit) {
     S.road = { class: hit.value, tags: hit.tags || null, fetchedAt: now, lat, lon };
-    renderRoad();
+    renderRoad(); updateRecommendation();
     return;
   }
   // Debounce immediately so a fast GPS stream doesn't fire concurrent requests
@@ -461,7 +603,7 @@ async function maybeUpdateRoad(pos) {
     const cls = classifyRoad(tags);
     S.road = { class: cls, tags, fetchedAt: now, lat, lon };
     roadCacheSet(lat, lon, cls, tags);
-    renderRoad();
+    renderRoad(); updateRecommendation();
   } catch (e) {
     console.warn('road lookup failed', e);
     // Exponential backoff: 60s, then 2min, then 4min up to 10min
@@ -473,7 +615,7 @@ async function maybeUpdateRoad(pos) {
 
 function renderRoad() {
   const badge = document.getElementById('roadBadge');
-  const detail = document.getElementById('roadDetail');
+  const detail = document.getElementById('contextDetail');
   if (!badge || !detail) return;
   const labels = {
     highway_sealed: ['Sealed highway', 'sealed'],
@@ -481,19 +623,308 @@ function renderRoad() {
     road_unsealed: ['Dirt / gravel', 'unsealed'],
     track_4wd: ['4WD track', 'track'],
     offroad: ['Off-road', 'offroad'],
-    unknown: ['—', 'unknown'],
+    unknown: ['Locating…', 'unknown'],
   };
   const [text, cls] = labels[S.road.class] || labels.unknown;
   badge.className = 'road-badge ' + cls;
   badge.textContent = text;
+  renderContextDetail();
+}
+
+function renderContextDetail() {
+  const detail = document.getElementById('contextDetail');
+  if (!detail) return;
+  const parts = [];
   if (S.road.tags) {
     const t = S.road.tags;
-    detail.textContent = [t.name, t.highway, t.surface, t.tracktype].filter(Boolean).join(' · ');
+    parts.push([t.name, t.highway, t.surface, t.tracktype].filter(Boolean).join(' · '));
   } else if (S.road.class === 'offroad') {
-    detail.textContent = 'No road within 250 m — off-road';
-  } else {
-    detail.textContent = 'Waiting for GPS fix…';
+    parts.push('No road within 250 m');
   }
+  if (S.weather.condition !== 'unknown') {
+    const w = S.weather;
+    const wParts = [];
+    if (w.tempC != null) wParts.push(`${w.tempC.toFixed(0)}°C`);
+    if (w.precipMmLastHr > 0) wParts.push(`${w.precipMmLastHr.toFixed(1)}mm/h`);
+    if (w.willRainSoon) wParts.push('rain soon');
+    if (wParts.length) parts.push(wParts.join(' · '));
+  }
+  detail.textContent = parts.length ? parts.join(' • ') : 'Waiting for GPS fix…';
+}
+
+// ============================================================================
+// Weather lookup (Open-Meteo, no key, CORS-friendly)
+// ============================================================================
+const WX_CACHE_KEY = 'prado.wxcache';
+const WX_CACHE_TTL_MS = 10 * 60 * 1000;
+const WX_CODE_BUCKETS = {
+  clear:      [0, 1],
+  cloudy:     [2, 3, 45, 48],
+  light_rain: [51, 53, 55, 56, 57, 61, 63, 80, 81],
+  heavy_rain: [65, 66, 67, 82, 95, 96, 99],
+  snow:       [71, 73, 75, 77, 85, 86],
+};
+function wxBucket(code) {
+  for (const [k, codes] of Object.entries(WX_CODE_BUCKETS)) {
+    if (codes.includes(code)) return k;
+  }
+  return 'cloudy';
+}
+function wxGridKey(lat, lon) { return `${lat.toFixed(2)},${lon.toFixed(2)}`; } // ~1.1 km
+function wxCacheGet(lat, lon) {
+  try {
+    const c = JSON.parse(localStorage.getItem(WX_CACHE_KEY) || '{}');
+    const hit = c[wxGridKey(lat, lon)];
+    if (hit && Date.now() - hit.t < WX_CACHE_TTL_MS) return hit.data;
+  } catch {}
+  return null;
+}
+function wxCacheSet(lat, lon, data) {
+  try {
+    const c = JSON.parse(localStorage.getItem(WX_CACHE_KEY) || '{}');
+    c[wxGridKey(lat, lon)] = { t: Date.now(), data };
+    // Trim to last 50 grid cells
+    const keys = Object.keys(c);
+    if (keys.length > 50) {
+      keys.sort((a, b) => c[a].t - c[b].t).slice(0, keys.length - 50).forEach(k => delete c[k]);
+    }
+    localStorage.setItem(WX_CACHE_KEY, JSON.stringify(c));
+  } catch {}
+}
+
+async function maybeUpdateWeather(pos) {
+  const now = Date.now();
+  if (now < S.weatherBackoffUntil) return;
+  if (now - S.weather.fetchedAt < WEATHER_LOOKUP_MIN_INTERVAL_MS) return;
+  const lat = pos.coords.latitude, lon = pos.coords.longitude;
+  const hit = wxCacheGet(lat, lon);
+  if (hit) {
+    S.weather = { ...hit, fetchedAt: now };
+    renderWeather(); updateRecommendation();
+    return;
+  }
+  S.weather.fetchedAt = now; // debounce
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
+    + `&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m`
+    + `&hourly=precipitation_probability,precipitation&past_hours=1&forecast_hours=3`
+    + `&timezone=auto&wind_speed_unit=kmh&precipitation_unit=mm&app=prado-ride`;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`Open-Meteo HTTP ${r.status}`);
+    const raw = await r.json();
+    const next3 = (raw.hourly?.precipitation_probability ?? []).slice(0, 3);
+    const data = {
+      tempC: raw.current?.temperature_2m ?? null,
+      condition: wxBucket(raw.current?.weather_code ?? -1),
+      precipMmLastHr: raw.hourly?.precipitation?.[0] ?? 0,
+      windKph: raw.current?.wind_speed_10m ?? null,
+      willRainSoon: next3.some(p => p >= 40),
+    };
+    S.weather = { ...data, fetchedAt: now };
+    wxCacheSet(lat, lon, data);
+    renderWeather(); updateRecommendation();
+  } catch (e) {
+    console.warn('weather lookup failed', e);
+    const lastBackoff = S.weatherBackoffUntil ? (now - S.weatherBackoffUntil) : 60000;
+    const next = Math.min(1800000, Math.max(60000, lastBackoff * 2));
+    S.weatherBackoffUntil = now + next;
+  }
+}
+
+function renderWeather() {
+  const badge = document.getElementById('weatherBadge');
+  const temp = document.getElementById('tempDisplay');
+  if (!badge) return;
+  const labels = {
+    clear: 'Clear',
+    cloudy: 'Cloudy',
+    light_rain: 'Light rain',
+    heavy_rain: 'Heavy rain',
+    snow: 'Snow',
+    unknown: '—',
+  };
+  badge.className = 'weather-badge ' + S.weather.condition;
+  let txt = labels[S.weather.condition] || '—';
+  if (S.weather.tempC != null) txt += `  ${S.weather.tempC.toFixed(0)}°`;
+  badge.textContent = txt;
+  if (temp) temp.textContent = S.weather.tempC != null ? `${S.weather.tempC.toFixed(0)}°` : '—°';
+  renderContextDetail();
+}
+
+// ============================================================================
+// Recommendation engine — Tough Dog FC 41mm 9-click + 285/70R17 MT (Prado VX-L)
+// ============================================================================
+const REC_LOOKUP = {
+  highway_sealed: {
+    clear:      { click:{front:6,rear:5}, psi:{front:40,rear:38}, confidence:'high',
+                  reason:'Dry highway — firm clicks for stability, full highway pressure.' },
+    cloudy:     { click:{front:6,rear:5}, psi:{front:40,rear:38}, confidence:'high',
+                  reason:'Dry highway — firm clicks for stability.' },
+    light_rain: { click:{front:5,rear:5}, psi:{front:40,rear:38}, confidence:'high',
+                  reason:'Wet highway — soften 1 click for compliance, keep psi up for aquaplaning resistance.' },
+    heavy_rain: { click:{front:5,rear:4}, psi:{front:38,rear:36}, confidence:'high',
+                  reason:'Heavy rain — softer clicks for grip, drop psi 2 for larger contact patch.' },
+    snow:       { click:{front:4,rear:4}, psi:{front:34,rear:32}, confidence:'low',
+                  reason:'Snow — soft + lower psi for grip; drive to conditions.' },
+  },
+  road_sealed: {
+    clear:      { click:{front:5,rear:4}, psi:{front:38,rear:36}, confidence:'high',
+                  reason:'Sealed B-road dry — balanced clicks, slightly lower psi than highway for comfort.' },
+    cloudy:     { click:{front:5,rear:4}, psi:{front:38,rear:36}, confidence:'high',
+                  reason:'Sealed B-road — balanced clicks for mixed surface quality.' },
+    light_rain: { click:{front:4,rear:4}, psi:{front:38,rear:36}, confidence:'high',
+                  reason:'Wet B-road — softer for compliance over painted lines and wet patches.' },
+    heavy_rain: { click:{front:4,rear:3}, psi:{front:36,rear:34}, confidence:'high',
+                  reason:'Heavy rain on backroads — soft for traction, slightly bigger contact patch.' },
+    snow:       { click:{front:3,rear:3}, psi:{front:32,rear:30}, confidence:'low',
+                  reason:'Snow — soft + lower psi for grip.' },
+  },
+  road_unsealed: {
+    clear:      { click:{front:6,rear:5}, psi:{front:30,rear:28}, confidence:'med',
+                  reason:'Dry gravel — firm to prevent shock pack-down (Tough Dog corrugation advice).' },
+    cloudy:     { click:{front:6,rear:5}, psi:{front:30,rear:28}, confidence:'med',
+                  reason:'Dry gravel — firm to prevent pack-down.' },
+    light_rain: { click:{front:5,rear:4}, psi:{front:28,rear:26}, confidence:'med',
+                  reason:'Damp gravel — slightly softer for grip on slick surface.' },
+    heavy_rain: { click:{front:4,rear:4}, psi:{front:26,rear:24}, confidence:'med',
+                  reason:'Wet/muddy gravel — softer + lower psi maximises contact and grip.' },
+    snow:       { click:{front:3,rear:3}, psi:{front:24,rear:22}, confidence:'low',
+                  reason:'Snowy gravel — soft, low psi, careful.' },
+  },
+  track_4wd: {
+    clear:      { click:{front:4,rear:4}, psi:{front:24,rear:22}, confidence:'med',
+                  reason:'4WD track — mid clicks for varied terrain, low psi for tyre conformity.' },
+    cloudy:     { click:{front:4,rear:4}, psi:{front:24,rear:22}, confidence:'med',
+                  reason:'4WD track — mid clicks, low psi for conformity.' },
+    light_rain: { click:{front:3,rear:3}, psi:{front:22,rear:20}, confidence:'med',
+                  reason:'Damp 4WD track — soften for grip on slippery roots/rocks.' },
+    heavy_rain: { click:{front:3,rear:3}, psi:{front:20,rear:18}, confidence:'low',
+                  reason:'Wet 4WD track — soft + low psi for traction. Reassess at every obstacle.' },
+    snow:       { click:{front:3,rear:3}, psi:{front:20,rear:18}, confidence:'low',
+                  reason:'Snowy track — soft, low psi.' },
+  },
+  offroad: {
+    clear:      { click:{front:3,rear:3}, psi:{front:20,rear:18}, confidence:'low',
+                  reason:'Technical offroad — soft for articulation. Adjust to specific surface (sand/rock).' },
+    cloudy:     { click:{front:3,rear:3}, psi:{front:20,rear:18}, confidence:'low',
+                  reason:'Offroad — soft for articulation; tune to surface.' },
+    light_rain: { click:{front:2,rear:3}, psi:{front:18,rear:16}, confidence:'low',
+                  reason:'Wet offroad — very soft front for compliance. Watch sidewalls on rock.' },
+    heavy_rain: { click:{front:2,rear:2}, psi:{front:16,rear:14}, confidence:'low',
+                  reason:'Severe wet offroad — softest practical setting; air down further only if sand/mud.' },
+    snow:       { click:{front:2,rear:2}, psi:{front:16,rear:14}, confidence:'low',
+                  reason:'Snow offroad — soft, very low psi for footprint.' },
+  },
+};
+const REC_COMFORT_THRESHOLD = {
+  highway_sealed: 0.5, road_sealed: 0.5,
+  road_unsealed: 0.8, track_4wd: 1.25, offroad: 1.25,
+};
+function clampClick(v) { return Math.max(CLICK_MIN, Math.min(CLICK_MAX, v)); }
+
+function computeRecommendation() {
+  const road = S.road.class;
+  if (!REC_LOOKUP[road]) return null;
+  const wx = S.weather.condition === 'unknown' ? 'clear' : S.weather.condition;
+  const entry = REC_LOOKUP[road][wx] || REC_LOOKUP[road].clear;
+  const rec = JSON.parse(JSON.stringify(entry));
+  const notes = [];
+
+  // Speed override (highway only)
+  if (road === 'highway_sealed' && S.speedKmh != null && S.speedKmh > 110) {
+    rec.click.front = clampClick(rec.click.front + 1);
+    rec.click.rear  = clampClick(rec.click.rear + 1);
+    notes.push(`Speed ${Math.round(S.speedKmh)} km/h — +1 click for stability.`);
+  }
+  // Laden bias
+  if (S.laden) {
+    rec.click.rear = clampClick(rec.click.rear + 1);
+    rec.psi.rear += road.includes('sealed') ? 4 : 2;
+    notes.push('Laden — +1 rear click, +rear psi for load.');
+  }
+  // Vibration overshoot adjustment (opposite polarity on sealed vs unsealed)
+  if (S.wkRms > 0 && S.recording) {
+    const thr = REC_COMFORT_THRESHOLD[road];
+    if (S.wkRms > thr * 1.3) {
+      const sealed = road.includes('sealed');
+      const delta = sealed ? -1 : +1;
+      rec.click.front = clampClick(rec.click.front + delta);
+      rec.click.rear  = clampClick(rec.click.rear + delta);
+      notes.push(sealed
+        ? `Live Wk-RMS ${S.wkRms.toFixed(2)} > ${thr} — too harsh, softening 1.`
+        : `Live Wk-RMS ${S.wkRms.toFixed(2)} > ${thr} — likely pack-down, firming 1.`);
+    }
+  }
+  if (notes.length) rec.reason += ' ' + notes.join(' ');
+  return rec;
+}
+
+function updateRecommendation() {
+  S.rec = computeRecommendation();
+  renderRecommendation();
+}
+
+function renderRecommendation() {
+  const recClick = document.getElementById('recClick');
+  const recPsi = document.getElementById('recPsi');
+  const recReason = document.getElementById('recReason');
+  const curClick = document.getElementById('curClick');
+  const curPsi = document.getElementById('curPsi');
+  const btnApply = document.getElementById('btnApplyRec');
+  if (!recClick) return;
+  curClick.textContent = `${S.click.front}/${S.click.rear}`;
+  curPsi.textContent = `${S.psi.front}/${S.psi.rear}`;
+  if (!S.rec) {
+    recClick.textContent = '—/—';
+    recPsi.textContent = '—/—';
+    recReason.textContent = S.road.class === 'unknown'
+      ? 'Need GPS + road class to recommend.'
+      : 'Computing…';
+    btnApply.disabled = true;
+    recClick.classList.remove('matches');
+    recPsi.classList.remove('matches');
+    return;
+  }
+  recClick.textContent = `${S.rec.click.front}/${S.rec.click.rear}`;
+  recPsi.textContent = `${S.rec.psi.front}/${S.rec.psi.rear}`;
+  const clickMatch = S.rec.click.front === S.click.front && S.rec.click.rear === S.click.rear;
+  const psiMatch = S.rec.psi.front === S.psi.front && S.rec.psi.rear === S.psi.rear;
+  recClick.classList.toggle('matches', clickMatch);
+  recPsi.classList.toggle('matches', psiMatch);
+  btnApply.disabled = (clickMatch && psiMatch);
+  const conf = S.rec.confidence === 'high' ? '' :
+               S.rec.confidence === 'med' ? ' (medium confidence)' :
+                                            ' (low confidence)';
+  recReason.textContent = S.rec.reason + conf;
+}
+
+function applyRecommendation() {
+  if (!S.rec) return;
+  S.click = { ...S.rec.click };
+  S.psi = { ...S.rec.psi };
+  saveClick(); savePsi();
+  renderClickPickers();
+  document.getElementById('psiFront').textContent = S.psi.front;
+  document.getElementById('psiRear').textContent = S.psi.rear;
+  renderRecommendation();
+  if (S.trip) {
+    S.trip.adjustments.push({
+      t: Date.now(),
+      front: S.click.front, rear: S.click.rear,
+      psiF: S.psi.front, psiR: S.psi.rear,
+      note: 'applied recommendation',
+    });
+  }
+  showAlert('info', `Applied · Click F${S.click.front}/R${S.click.rear} · ${S.psi.front}/${S.psi.rear} psi`);
+  setTimeout(clearAlerts, 2500);
+}
+
+// Persistence helpers
+function loadLaden() {
+  try { S.laden = JSON.parse(localStorage.getItem('prado.laden') || 'false'); } catch {}
+}
+function saveLaden() {
+  localStorage.setItem('prado.laden', JSON.stringify(S.laden));
 }
 
 // ============================================================================
@@ -561,10 +992,12 @@ function onGps(pos) {
   S.lastGps = pos;
   const kmh = (pos.coords.speed != null && pos.coords.speed >= 0)
     ? pos.coords.speed * 3.6 : null;
+  S.speedKmh = kmh;
   document.getElementById('speedDisplay').textContent =
     kmh != null ? `${kmh.toFixed(0)} km/h` : '— km/h';
-  // Road type lookup (throttled + cached internally)
+  // Road type + weather lookups (throttled + cached internally)
   maybeUpdateRoad(pos);
+  maybeUpdateWeather(pos);
   if (S.recording && S.trip) {
     S.trip.gps.push({
       t: Date.now(),
@@ -924,6 +1357,7 @@ function adjustPsi(which, delta) {
   S.psi[which] = Math.max(PSI_MIN, Math.min(PSI_MAX, S.psi[which] + delta));
   document.getElementById('psi' + which.charAt(0).toUpperCase() + which.slice(1)).textContent = S.psi[which];
   savePsi();
+  renderRecommendation();
 }
 
 // ============================================================================
@@ -949,6 +1383,7 @@ function renderClickPickers() {
         S.click[which] = i;
         saveClick();
         renderClickPickers();
+        renderRecommendation();
       };
       c.appendChild(b);
     }
@@ -970,16 +1405,11 @@ function renderLive() {
   document.getElementById('wkRms').textContent = rms.toFixed(2);
   document.getElementById('vdv').textContent = vdv.toFixed(2);
   const [label, pos] = comfortLabel(rms);
-  document.getElementById('wkRmsLabel').textContent = label;
   document.getElementById('comfortText').textContent = label;
   document.querySelector('.comfort-bar').style.setProperty('--comfort-pos', pos + '%');
   document.getElementById('rollPitch').textContent =
-    `${S.rollDeg.toFixed(0)}° / ${S.pitchDeg.toFixed(0)}°`;
-  document.getElementById('rollMax').textContent = `Peak ${S.rollMaxAbs.toFixed(0)}°`;
+    `${S.rollDeg.toFixed(0)}/${S.pitchDeg.toFixed(0)}°`;
   document.getElementById('latG').textContent = S.latG.toFixed(2);
-  document.getElementById('latGMax').textContent = `Peak ${S.latGMaxAbs.toFixed(2)}`;
-  document.getElementById('vdvLabel').textContent =
-    vdv > 8.5 ? `OVER daily limit (${vdv.toFixed(1)})` : `Daily limit 8.5`;
 }
 
 function renderTrips() {
@@ -1082,6 +1512,13 @@ document.getElementById('btnStart').onclick = startTrip;
 document.getElementById('btnStop').onclick = stopTrip;
 document.getElementById('btnLogAdj').onclick = logAdjustment;
 document.getElementById('btnCalibrate').onclick = startCalibration;
+document.getElementById('btnApplyRec').onclick = applyRecommendation;
+document.getElementById('btnToggleSetup').onclick = () => {
+  const body = document.getElementById('setupBody');
+  const btn = document.getElementById('btnToggleSetup');
+  const hidden = body.classList.toggle('hidden');
+  btn.textContent = hidden ? '+' : '−';
+};
 document.getElementById('btnWipe').onclick = () => {
   if (confirm('Delete ALL trips and reset?')) {
     localStorage.clear();
@@ -1101,10 +1538,16 @@ for (const t of document.querySelectorAll('.tab')) {
 // Init
 loadClick();
 loadPsi();
+loadLaden();
 renderClickPickers();
 document.getElementById('psiFront').textContent = S.psi.front;
 document.getElementById('psiRear').textContent = S.psi.rear;
+const ladenEl = document.getElementById('ladenToggle');
+ladenEl.checked = S.laden;
+ladenEl.onchange = () => { S.laden = ladenEl.checked; saveLaden(); updateRecommendation(); };
 renderRoad();
+renderWeather();
+renderRecommendation();
 showView('perm');
 document.getElementById('permHttps').textContent = window.isSecureContext ? 'OK' : 'INSECURE';
 document.getElementById('permHttps').className = window.isSecureContext ? 'ok' : 'bad';
