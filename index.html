@@ -468,6 +468,14 @@
       </div>
     </details>
     <details>
+      <summary>Learning (Bayesian recommender)</summary>
+      <div style="margin-top:8px; color:#ccc; font-size:13px;">
+        Observations from your trips train the recommendation engine. After 10 observations on a given road type, the app uses your data instead of the manufacturer table.
+      </div>
+      <div id="learningStats" style="margin-top:10px; background:#0c0c0e; border-radius:8px; padding:10px; font-size:13px;">—</div>
+      <button class="ghost danger" id="btnResetLearning" style="margin-top:10px;">Reset learning</button>
+    </details>
+    <details>
       <summary>Diagnostics</summary>
       <pre id="diag">—</pre>
     </details>
@@ -528,6 +536,13 @@ const S = {
 
   // Speed (km/h, smoothed)
   speedKmh: null,
+
+  // Bayesian learning
+  learning: {
+    observations: [], // {t, terrain, weather, clickF, clickR, rmsMean, rmsSd, durationS}
+    segment: null,    // current segment being accumulated during a trip
+    lastTick: 0,      // throttle tick to 1Hz
+  },
 };
 const SAMPLE_HZ_NOMINAL = 60;
 const G = 9.80665;
@@ -906,6 +921,27 @@ function computeRecommendation() {
         : `Live Wk-RMS ${S.wkRms.toFixed(2)} > ${thr} — likely pack-down, firming 1.`);
     }
   }
+
+  // Bayesian override — kicks in once we have enough personal observations
+  const bayes = bayesianBestClick(road);
+  if (bayes.totalN >= BAYESIAN_ACTIVATE_N && bayes.click != null) {
+    const tableIdealFront = REC_LOOKUP[road].clear.click.front;
+    const weatherOffset = entry.click.front - tableIdealFront;
+    const adjustedFront = clampClick(bayes.click + weatherOffset);
+    const rearOffset = entry.click.rear - entry.click.front; // preserve F-R relationship from table
+    const adjustedRear = clampClick(adjustedFront + rearOffset);
+    rec.dataSource = 'bayesian';
+    rec.observationCount = bayes.totalN;
+    if (adjustedFront !== rec.click.front) {
+      const before = `${rec.click.front}/${rec.click.rear}`;
+      rec.click.front = adjustedFront;
+      rec.click.rear = adjustedRear;
+      notes.push(`Personalised · your ${bayes.totalN} observations show click ${bayes.click} is best on ${road} (table said ${before}).`);
+    } else {
+      notes.push(`Personalised · confirmed by your ${bayes.totalN} observations.`);
+    }
+  }
+
   if (notes.length) rec.reason += ' ' + notes.join(' ');
   return rec;
 }
@@ -961,8 +997,13 @@ function renderRecommendation() {
     }
   }
 
-  recConf.textContent = S.rec.confidence + ' confidence';
-  recConf.className = 'rec-conf ' + S.rec.confidence;
+  if (S.rec.dataSource === 'bayesian') {
+    recConf.textContent = `personalised · n=${S.rec.observationCount}`;
+    recConf.className = 'rec-conf high';
+  } else {
+    recConf.textContent = S.rec.confidence + ' confidence';
+    recConf.className = 'rec-conf ' + S.rec.confidence;
+  }
   recReason.textContent = S.rec.reason;
   btnApply.disabled = allMatch;
   btnApply.textContent = allMatch ? 'Setup matches recommendation ✓' : 'Apply suggested setup';
@@ -995,6 +1036,133 @@ function loadLaden() {
 }
 function saveLaden() {
   localStorage.setItem('prado.laden', JSON.stringify(S.laden));
+}
+
+// ============================================================================
+// Bayesian recommender — learns from your trips
+// ============================================================================
+const SEG_MIN_DURATION_S = 30;     // min segment length to commit
+const SEG_MIN_SAMPLES = 25;        // min samples (at 1Hz, 25s of data)
+const POSTERIOR_PRIOR_WEIGHT = 5;  // pseudo-count for prior in posterior
+const BAYESIAN_ACTIVATE_N = 10;    // total obs on this terrain before overriding
+
+function loadObservations() {
+  try { S.learning.observations = JSON.parse(localStorage.getItem('prado.obs') || '[]'); }
+  catch { S.learning.observations = []; }
+}
+function saveObservations() {
+  if (S.learning.observations.length > 5000) {
+    S.learning.observations = S.learning.observations.slice(-5000);
+  }
+  try { localStorage.setItem('prado.obs', JSON.stringify(S.learning.observations)); } catch {}
+}
+
+// Called from the renderLive loop (5Hz), throttled to 1Hz internally.
+// Accumulates the current segment and commits it when conditions change or end.
+function tickSegment() {
+  const now = Date.now();
+  if (now - S.learning.lastTick < 1000) return;
+  S.learning.lastTick = now;
+
+  if (!S.recording || !S.calibration || S.road.class === 'unknown' || S.wkRms <= 0) {
+    // Conditions don't allow learning right now — commit any open segment + clear
+    if (S.learning.segment) {
+      maybeCommitSegment(S.learning.segment, now);
+      S.learning.segment = null;
+    }
+    return;
+  }
+
+  const cur = {
+    terrain: S.road.class,
+    clickF: S.click.front,
+    clickR: S.click.rear,
+    weather: S.weather.condition,
+  };
+
+  // Existing segment: check if it's still valid
+  if (S.learning.segment) {
+    const seg = S.learning.segment;
+    if (seg.terrain !== cur.terrain || seg.clickF !== cur.clickF || seg.clickR !== cur.clickR) {
+      maybeCommitSegment(seg, now);
+      S.learning.segment = null;
+    }
+  }
+
+  // Start new segment if needed
+  if (!S.learning.segment) {
+    S.learning.segment = { ...cur, startedAt: now, rmsSum: 0, rmsSumSq: 0, sampleCount: 0 };
+  }
+
+  // Accumulate this 1Hz tick
+  const sg = S.learning.segment;
+  sg.rmsSum += S.wkRms;
+  sg.rmsSumSq += S.wkRms * S.wkRms;
+  sg.sampleCount++;
+}
+
+function maybeCommitSegment(seg, endTime) {
+  const durationS = (endTime - seg.startedAt) / 1000;
+  if (durationS < SEG_MIN_DURATION_S) return;
+  if (seg.sampleCount < SEG_MIN_SAMPLES) return;
+  const mean = seg.rmsSum / seg.sampleCount;
+  const variance = Math.max(0, seg.rmsSumSq / seg.sampleCount - mean * mean);
+  S.learning.observations.push({
+    t: seg.startedAt,
+    terrain: seg.terrain,
+    weather: seg.weather,
+    clickF: seg.clickF,
+    clickR: seg.clickR,
+    rmsMean: +mean.toFixed(3),
+    rmsSd: +Math.sqrt(variance).toFixed(3),
+    durationS: Math.round(durationS),
+  });
+  saveObservations();
+}
+
+// Prior belief about Wk-RMS at a given (terrain, click) — used when we have no data.
+// Idea: the table's recommended click should yield comfortable RMS (~0.5 * threshold);
+// deviating one click away costs ~18% of threshold in extra RMS.
+function priorRmsForClick(terrain, clickF) {
+  if (!REC_LOOKUP[terrain]) return 1.0;
+  const ideal = REC_LOOKUP[terrain].clear.click.front;
+  const threshold = REC_COMFORT_THRESHOLD[terrain] || 1.0;
+  const dist = Math.abs(clickF - ideal);
+  return threshold * (0.5 + 0.18 * dist);
+}
+
+// Normal-conjugate posterior: weighted average of prior mean and observed mean
+function posteriorRms(terrain, clickF) {
+  const prior = priorRmsForClick(terrain, clickF);
+  const obs = S.learning.observations.filter(o => o.terrain === terrain && o.clickF === clickF);
+  if (obs.length === 0) return { mean: prior, n: 0, observed: null };
+  const obsMean = obs.reduce((s, o) => s + o.rmsMean, 0) / obs.length;
+  const w0 = POSTERIOR_PRIOR_WEIGHT;
+  return {
+    mean: (w0 * prior + obs.length * obsMean) / (w0 + obs.length),
+    n: obs.length,
+    observed: obsMean,
+  };
+}
+
+function bayesianBestClick(terrain) {
+  let bestClick = null, bestMean = Infinity, totalN = 0;
+  const curve = [];
+  for (let c = CLICK_MIN; c <= CLICK_MAX; c++) {
+    const p = posteriorRms(terrain, c);
+    totalN += p.n;
+    curve.push({ click: c, posteriorMean: p.mean, n: p.n, observed: p.observed });
+    if (p.mean < bestMean) { bestMean = p.mean; bestClick = c; }
+  }
+  return { click: bestClick, totalN, bestMean, curve };
+}
+
+function resetLearning() {
+  if (!confirm(`Delete all ${S.learning.observations.length} learned observations? Recommendations will revert to the manufacturer table.`)) return;
+  S.learning.observations = [];
+  saveObservations();
+  updateRecommendation();
+  renderLearningStats();
 }
 
 // ============================================================================
@@ -1340,6 +1508,11 @@ function startTrip() {
 
 function stopTrip() {
   if (!S.trip) return;
+  // Commit any open learning segment before tearing down
+  if (S.learning.segment) {
+    maybeCommitSegment(S.learning.segment, Date.now());
+    S.learning.segment = null;
+  }
   if (S.trip.samples.length < 30) {
     if (!confirm(`Only ${S.trip.samples.length} samples recorded — trip likely has no useful data. Save anyway?`)) {
       abortTripDueToCalibFail();
@@ -1518,7 +1691,37 @@ function renderTrips() {
   }
 }
 
+function renderLearningStats() {
+  const el = document.getElementById('learningStats');
+  if (!el) return;
+  const obs = S.learning.observations;
+  if (!obs.length) {
+    el.innerHTML = '<div style="color:#888;">No observations yet. Drive a trip and the recommender will start to learn.</div>';
+    return;
+  }
+  const perTerrain = {};
+  const perTerrainClicks = {};
+  for (const o of obs) {
+    perTerrain[o.terrain] = (perTerrain[o.terrain] || 0) + 1;
+    if (!perTerrainClicks[o.terrain]) perTerrainClicks[o.terrain] = {};
+    perTerrainClicks[o.terrain][o.clickF] = (perTerrainClicks[o.terrain][o.clickF] || 0) + 1;
+  }
+  let html = `<div style="margin-bottom:8px; font-weight:600;">${obs.length} total observations</div>`;
+  for (const t of Object.keys(perTerrain).sort()) {
+    const active = perTerrain[t] >= BAYESIAN_ACTIVATE_N;
+    html += `<div style="margin-top:6px;"><span style="color:${active ? '#34c759' : '#aaa'};">${active ? '●' : '○'}</span> <b>${t}</b>: ${perTerrain[t]} obs`;
+    const best = bayesianBestClick(t);
+    if (active) {
+      html += ` &middot; best click <b>${best.click}</b>`;
+    }
+    html += `<div style="font-size:11px; color:#888; margin-left:14px;">clicks tried: ${Object.entries(perTerrainClicks[t]).map(([k,v]) => `${k}(${v})`).join(', ')}</div>`;
+    html += `</div>`;
+  }
+  el.innerHTML = html;
+}
+
 function renderDiag() {
+  renderLearningStats();
   document.getElementById('diag').textContent = JSON.stringify({
     secureContext: window.isSecureContext,
     motion: S.perms.motion,
@@ -1531,6 +1734,10 @@ function renderDiag() {
     road: S.road.class,
     roadTags: S.road.tags,
     roadBackoffActive: S.roadBackoffUntil > Date.now(),
+    weather: S.weather.condition,
+    weatherTempC: S.weather.tempC,
+    observations: S.learning.observations.length,
+    openSegmentS: S.learning.segment ? Math.round((Date.now() - S.learning.segment.startedAt)/1000) : null,
     userAgent: navigator.userAgent,
   }, null, 2);
 }
@@ -1583,6 +1790,7 @@ document.getElementById('btnStop').onclick = stopTrip;
 document.getElementById('btnLogAdj').onclick = logAdjustment;
 document.getElementById('btnCalibrate').onclick = startCalibration;
 document.getElementById('btnApplyRec').onclick = applyRecommendation;
+document.getElementById('btnResetLearning').onclick = resetLearning;
 document.getElementById('btnToggleSetup').onclick = () => {
   const body = document.getElementById('setupBody');
   const btn = document.getElementById('btnToggleSetup');
@@ -1609,6 +1817,7 @@ for (const t of document.querySelectorAll('.tab')) {
 loadClick();
 loadPsi();
 loadLaden();
+loadObservations();
 renderClickPickers();
 document.getElementById('psiFront').textContent = S.psi.front;
 document.getElementById('psiRear').textContent = S.psi.rear;
@@ -1622,8 +1831,8 @@ showView('perm');
 document.getElementById('permHttps').textContent = window.isSecureContext ? 'OK' : 'INSECURE';
 document.getElementById('permHttps').className = window.isSecureContext ? 'ok' : 'bad';
 
-// Live UI refresh loop @ 5 Hz
-setInterval(renderLive, 200);
+// Live UI refresh loop @ 5 Hz (tickSegment self-throttles to 1 Hz)
+setInterval(() => { renderLive(); tickSegment(); }, 200);
 
 // Re-acquire wake lock on visibility change
 document.addEventListener('visibilitychange', () => {
