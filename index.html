@@ -545,6 +545,14 @@
         Sample rate: ~60 Hz (browser-limited). Native Swift app would hit 800 Hz.
       </div>
     </details>
+    <details open>
+      <summary>Speed safety chart (you are the orange dot)</summary>
+      <div style="margin-top:8px; color:#aaa; font-size:12px;">
+        Live position: your current tyre pressure (lower of F/R) × GPS speed. Cross into the red zone and the speed-safety banner fires.
+      </div>
+      <div id="speedSafetyChart" style="margin-top:10px;"></div>
+      <div id="speedSafetyChartReadout" style="margin-top:6px; color:#888; font-size:11px; text-align:center;">—</div>
+    </details>
     <details>
       <summary>Pressure ladder (Ronny Dahl's rule of thumb)</summary>
       <div style="margin-top:8px; color:#aaa; font-size:12px;">
@@ -691,6 +699,8 @@ function refreshPressureDisplay() {
   document.querySelectorAll('.psi-munit').forEach(el => el.textContent = pressureUnitLabel());
   renderRecommendation();
   renderPressureLadder();
+  buildSpeedSafetyChart();
+  updateLiveDot();
 }
 
 // ============================================================================
@@ -1910,6 +1920,7 @@ function renderLive() {
   document.getElementById('latG').textContent = S.latG.toFixed(2);
   renderSpeedWarning();
   renderRolloverWarning();
+  updateLiveDot();
 }
 
 function renderTrips() {
@@ -2017,9 +2028,170 @@ function renderPressureLadder() {
   }
 }
 
+// ============================================================================
+// Live speed-safety chart (Ronny's ladder + terrain markers + live YOU dot)
+// ============================================================================
+const CHART_W = 360, CHART_H = 240;
+const CHART_PAD = { l: 36, r: 10, t: 14, b: 30 };
+const CHART_X_MIN_KPA = 50, CHART_X_MAX_KPA = 330;
+const CHART_Y_MIN = 0, CHART_Y_MAX = 130;
+
+function chartProject(kpa, kmh) {
+  const cw = CHART_W - CHART_PAD.l - CHART_PAD.r;
+  const ch = CHART_H - CHART_PAD.t - CHART_PAD.b;
+  const x = CHART_PAD.l + (kpa - CHART_X_MIN_KPA) / (CHART_X_MAX_KPA - CHART_X_MIN_KPA) * cw;
+  const y = CHART_PAD.t + (1 - (kmh - CHART_Y_MIN) / (CHART_Y_MAX - CHART_Y_MIN)) * ch;
+  return [x, y];
+}
+
+// Build the static part of the SVG (called once on init + on unit change)
+function buildSpeedSafetyChart() {
+  const el = document.getElementById('speedSafetyChart');
+  if (!el) return;
+  const ladder = [
+    { psi: 0,  kmh: 30 },
+    { psi: 15, kmh: 40 },
+    { psi: 20, kmh: 60 },
+    { psi: 25, kmh: 80 },
+    { psi: 30, kmh: 90 },
+    { psi: 35, kmh: 130 },
+    { psi: 55, kmh: 130 },
+  ];
+  // Build danger polygon (above ladder, capped at top)
+  const dangerPts = [];
+  const safePts = [];
+  for (let i = 0; i < ladder.length - 1; i++) {
+    const [x1, y1] = chartProject(ladder[i].psi * 6.89476, ladder[i].kmh);
+    const [x2, y2] = chartProject(ladder[i+1].psi * 6.89476, ladder[i].kmh);
+    dangerPts.push(`${x1},${y1}`, `${x2},${y2}`);
+    safePts.push(`${x1},${y1}`, `${x2},${y2}`);
+  }
+  const [xR] = chartProject(CHART_X_MAX_KPA, 0);
+  const [xL, yT] = chartProject(CHART_X_MIN_KPA, CHART_Y_MAX);
+  const [, yB] = chartProject(CHART_X_MIN_KPA, CHART_Y_MIN);
+  const dangerPoly = `${xL},${yT} ${dangerPts.join(' ')} ${xR},${yT}`;
+  const safePoly = `${xL},${yB} ${safePts.join(' ')} ${xR},${yB}`;
+
+  // Ladder line
+  const ladderPath = dangerPts.map((p, i) => (i === 0 ? 'M' : 'L') + p).join(' ');
+
+  // Terrain markers
+  const terrains = [
+    { name: 'Highway',  kpa: 276, kmh: 105, color: '#5ac8fa', dx: 6, dy: 0 },
+    { name: 'B-road',   kpa: 262, kmh: 88,  color: '#5ac8fa', dx: 6, dy: 0 },
+    { name: 'Gravel',   kpa: 207, kmh: 68,  color: '#ffcc00', dx: -6, dy: -2, anchor: 'end' },
+    { name: 'Corrug.',  kpa: 221, kmh: 78,  color: '#ffcc00', dx: 6, dy: 0 },
+    { name: '4WD track',kpa: 158, kmh: 45,  color: '#ff9500', dx: 6, dy: 0 },
+    { name: 'Sand',     kpa: 117, kmh: 32,  color: '#d35400', dx: 6, dy: 5 },
+    { name: 'Off-road', kpa: 138, kmh: 22,  color: '#ff3b30', dx: 6, dy: -2 },
+    { name: 'Rocks',    kpa: 97,  kmh: 8,   color: '#a93226', dx: 6, dy: 4 },
+  ];
+  const markersSvg = terrains.map(t => {
+    const [x, y] = chartProject(t.kpa, t.kmh);
+    const anchor = t.anchor || 'start';
+    return `<g>
+      <circle cx="${x}" cy="${y}" r="5" fill="${t.color}" stroke="#fff" stroke-width="1.2"/>
+      <text x="${x + t.dx}" y="${y + t.dy + 3}" font-size="9.5" fill="#ddd" text-anchor="${anchor}" font-weight="600">${t.name}</text>
+    </g>`;
+  }).join('');
+
+  // X-axis ticks
+  let xTicks = '';
+  const tickKpa = [50, 100, 150, 200, 250, 300];
+  for (const k of tickKpa) {
+    const [x, yAxis] = chartProject(k, 0);
+    xTicks += `<line x1="${x}" y1="${yAxis}" x2="${x}" y2="${yAxis + 4}" stroke="#666"/>`;
+    xTicks += `<text x="${x}" y="${yAxis + 14}" font-size="9" fill="#888" text-anchor="middle">${formatPressure(Math.round(k/6.89476))}</text>`;
+  }
+  // X-axis unit label
+  const [xMid, yX] = chartProject((CHART_X_MIN_KPA + CHART_X_MAX_KPA)/2, 0);
+  const xLabel = `<text x="${xMid}" y="${yX + 26}" font-size="10" fill="#aaa" text-anchor="middle" font-weight="600">Tyre pressure (${pressureUnitLabel()})</text>`;
+  // Y-axis ticks
+  let yTicks = '';
+  for (const s of [0, 30, 60, 90, 130]) {
+    const [xAxis, y] = chartProject(CHART_X_MIN_KPA, s);
+    yTicks += `<line x1="${xAxis - 4}" y1="${y}" x2="${xAxis}" y2="${y}" stroke="#666"/>`;
+    yTicks += `<text x="${xAxis - 6}" y="${y + 3}" font-size="9" fill="#888" text-anchor="end">${s}</text>`;
+  }
+  const [xY, yMid] = chartProject(CHART_X_MIN_KPA, 65);
+  const yLabel = `<text transform="translate(10, ${yMid}) rotate(-90)" font-size="10" fill="#aaa" text-anchor="middle" font-weight="600">Speed (km/h)</text>`;
+
+  // Zone labels
+  const [xDangerLbl, yDangerLbl] = chartProject(70, 120);
+  const [xSafeLbl, ySafeLbl] = chartProject(310, 10);
+
+  const svg = `
+  <svg viewBox="0 0 ${CHART_W} ${CHART_H}" width="100%" style="display:block; max-width:520px; margin:0 auto;" preserveAspectRatio="xMidYMid meet">
+    <!-- background -->
+    <rect x="${CHART_PAD.l}" y="${CHART_PAD.t}" width="${CHART_W-CHART_PAD.l-CHART_PAD.r}" height="${CHART_H-CHART_PAD.t-CHART_PAD.b}" fill="#141414" stroke="#333" stroke-width="0.5"/>
+    <!-- safe zone -->
+    <polygon points="${safePoly}" fill="#34c759" fill-opacity="0.10"/>
+    <!-- danger zone -->
+    <polygon points="${dangerPoly}" fill="#ff3b30" fill-opacity="0.20"/>
+    <!-- ladder line -->
+    <path d="${ladderPath}" fill="none" stroke="#ff9500" stroke-width="2.5"/>
+    <!-- zone labels -->
+    <text x="${xDangerLbl}" y="${yDangerLbl}" font-size="11" font-weight="800" fill="#ff3b30" fill-opacity="0.85">DANGER</text>
+    <text x="${xSafeLbl}" y="${ySafeLbl}" font-size="11" font-weight="800" fill="#34c759" fill-opacity="0.85" text-anchor="end">SAFE</text>
+    <!-- terrain markers -->
+    ${markersSvg}
+    <!-- axes -->
+    ${xTicks}
+    ${yTicks}
+    ${xLabel}
+    ${yLabel}
+    <!-- live YOU dot — updated by updateLiveDot() -->
+    <g id="liveDotGroup" style="display:none;">
+      <circle id="liveDotPulse" cx="0" cy="0" r="14" fill="#ff9500" fill-opacity="0.25">
+        <animate attributeName="r" values="10;18;10" dur="1.6s" repeatCount="indefinite"/>
+        <animate attributeName="fill-opacity" values="0.4;0.1;0.4" dur="1.6s" repeatCount="indefinite"/>
+      </circle>
+      <circle id="liveSafetyDot" cx="0" cy="0" r="6" fill="#ff9500" stroke="#fff" stroke-width="2"/>
+      <text id="liveDotLabel" x="0" y="0" font-size="10" font-weight="700" fill="#fff" text-anchor="middle" dy="-12">YOU</text>
+    </g>
+  </svg>`;
+  el.innerHTML = svg;
+}
+
+function updateLiveDot() {
+  const g = document.getElementById('liveDotGroup');
+  if (!g) return;
+  const minPsi = Math.min(S.psi.front, S.psi.rear);
+  const minKpa = minPsi * 6.89476;
+  const speed = S.speedKmh != null ? S.speedKmh : null;
+  const readoutEl = document.getElementById('speedSafetyChartReadout');
+  if (speed == null) {
+    g.style.display = 'none';
+    if (readoutEl) readoutEl.textContent = `Waiting for GPS speed · pressure ${formatPressure(minPsi)} ${pressureUnitLabel()}`;
+    return;
+  }
+  const clampedSpeed = Math.max(0, Math.min(130, speed));
+  const clampedKpa = Math.max(CHART_X_MIN_KPA, Math.min(CHART_X_MAX_KPA, minKpa));
+  const [x, y] = chartProject(clampedKpa, clampedSpeed);
+  g.style.display = '';
+  document.getElementById('liveSafetyDot').setAttribute('cx', x);
+  document.getElementById('liveSafetyDot').setAttribute('cy', y);
+  document.getElementById('liveDotPulse').setAttribute('cx', x);
+  document.getElementById('liveDotPulse').setAttribute('cy', y);
+  document.getElementById('liveDotLabel').setAttribute('x', x);
+  document.getElementById('liveDotLabel').setAttribute('y', y);
+  // Readout: in safe zone or danger zone?
+  const limit = maxSafeSpeedKmh(minPsi);
+  const inDanger = limit != null && speed > limit + 3;
+  if (readoutEl) {
+    const status = inDanger
+      ? `⚠ DANGER — slow to <${limit} km/h or air up`
+      : (limit != null ? `Safe · ceiling ${limit} km/h at this pressure` : `Safe · no speed limit at this pressure`);
+    readoutEl.innerHTML = `<b>${formatPressure(minPsi)} ${pressureUnitLabel()}</b> at <b>${Math.round(speed)} km/h</b> · ${status}`;
+    readoutEl.style.color = inDanger ? '#ff3b30' : '#888';
+  }
+}
+
 function renderDiag() {
   renderLearningStats();
   renderPressureLadder();
+  buildSpeedSafetyChart();
+  updateLiveDot();
   document.getElementById('diag').textContent = JSON.stringify({
     secureContext: window.isSecureContext,
     motion: S.perms.motion,
