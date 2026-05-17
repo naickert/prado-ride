@@ -92,13 +92,41 @@
   .controls button { flex: 1; min-height: 56px; }
 
   /* Click log */
-  .click-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
-  .click-pick { display: flex; gap: 6px; flex-wrap: wrap; }
+  .click-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .click-row > .click-lbl { width: 44px; color: #aaa; font-size: 14px; flex-shrink: 0; }
+  .click-pick { display: flex; gap: 4px; flex: 1; }
   .click-pick button {
-    width: 36px; height: 36px; border-radius: 8px; border: 1px solid #333;
-    background: #1c1c1e; color: #fff; font-weight: 600;
+    flex: 1; min-width: 0; height: 34px; border-radius: 7px; border: 1px solid #333;
+    background: #1c1c1e; color: #fff; font-weight: 600; font-size: 13px; padding: 0;
   }
   .click-pick button.sel { background: #ff9500; color: #000; border-color: #ff9500; }
+
+  /* Tyre pressure stepper */
+  .psi-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .psi-row > .psi-lbl { width: 44px; color: #aaa; font-size: 14px; flex-shrink: 0; }
+  .psi-stepper { display: flex; align-items: center; gap: 8px; flex: 1; }
+  .psi-stepper button {
+    width: 40px; height: 40px; border-radius: 8px; border: 1px solid #333;
+    background: #1c1c1e; color: #fff; font-weight: 700; font-size: 20px; padding: 0;
+  }
+  .psi-stepper .psi-val {
+    flex: 1; text-align: center; font-size: 22px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .psi-stepper .psi-val .unit { font-size: 13px; color: #888; font-weight: 400; margin-left: 4px; }
+
+  /* Road type card */
+  .road-type { display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+  .road-badge {
+    padding: 6px 12px; border-radius: 8px; font-size: 14px; font-weight: 600;
+    background: #1c1c1e; border: 1px solid #333; color: #fff;
+  }
+  .road-badge.sealed { background: #1d3557; color: #cce4ff; border-color: #2c5d8a; }
+  .road-badge.unsealed { background: #5d4429; color: #ffd9a3; border-color: #8a6a40; }
+  .road-badge.track { background: #5a3d29; color: #ffba80; border-color: #8a5d3d; }
+  .road-badge.offroad { background: #5a2929; color: #ffb3b3; border-color: #8a3d3d; }
+  .road-badge.unknown { color: #888; }
+  .road-detail { color: #aaa; font-size: 13px; flex: 1; min-width: 0; }
 
   /* Trip list */
   .trip-item {
@@ -191,14 +219,40 @@
         <div class="comfort-label" id="comfortText">— stationary —</div>
       </div>
       <div class="card span-2">
+        <div class="label">Road type</div>
+        <div class="road-type">
+          <span class="road-badge unknown" id="roadBadge">— locating —</span>
+          <div class="road-detail" id="roadDetail">Waiting for GPS fix…</div>
+        </div>
+      </div>
+      <div class="card span-2">
         <div class="label">Current click setting</div>
         <div class="click-row">
-          <div style="font-size: 14px; color:#aaa;">Front</div>
+          <div class="click-lbl">Front</div>
           <div class="click-pick" id="clickFront"></div>
         </div>
         <div class="click-row">
-          <div style="font-size: 14px; color:#aaa;">Rear &nbsp;</div>
+          <div class="click-lbl">Rear</div>
           <div class="click-pick" id="clickRear"></div>
+        </div>
+      </div>
+      <div class="card span-2">
+        <div class="label">Tyre pressure</div>
+        <div class="psi-row">
+          <div class="psi-lbl">Front</div>
+          <div class="psi-stepper">
+            <button onclick="adjustPsi('front', -1)" aria-label="Decrease front">−</button>
+            <div class="psi-val"><span id="psiFront">38</span><span class="unit">psi</span></div>
+            <button onclick="adjustPsi('front', +1)" aria-label="Increase front">+</button>
+          </div>
+        </div>
+        <div class="psi-row">
+          <div class="psi-lbl">Rear</div>
+          <div class="psi-stepper">
+            <button onclick="adjustPsi('rear', -1)" aria-label="Decrease rear">−</button>
+            <div class="psi-val"><span id="psiRear">36</span><span class="unit">psi</span></div>
+            <button onclick="adjustPsi('rear', +1)" aria-label="Increase rear">+</button>
+          </div>
         </div>
       </div>
     </div>
@@ -248,7 +302,7 @@
   </div>
 
   <div class="footer hidden" id="footer-trip">
-    <button class="ghost" id="btnLogClick">Log click change</button>
+    <button class="ghost" id="btnLogAdj">Log adjustment</button>
     <button class="primary danger" id="btnStop">Stop trip</button>
   </div>
 </div>
@@ -265,6 +319,7 @@ const S = {
   trip: null,
   trips: loadTrips(),
   click: { front: 5, rear: 5 },
+  psi: { front: 38, rear: 36 },
   calibration: null,        // { R: 3x3 phone→vehicle, gravMag }
   calibBuffer: [],          // gravity samples during calibration
   lastGps: null,
@@ -280,10 +335,16 @@ const S = {
   rollDeg: 0, pitchDeg: 0,
   rollMaxAbs: 0,
   latG: 0, latGMaxAbs: 0,
+
+  // Road type (from Overpass API)
+  road: { class: 'unknown', tags: null, fetchedAt: 0, lat: null, lon: null },
+  roadBackoffUntil: 0,
 };
 const SAMPLE_HZ_NOMINAL = 60;
 const G = 9.80665;
 const CLICK_MIN = 1, CLICK_MAX = 9;
+const PSI_MIN = 10, PSI_MAX = 50;
+const ROAD_LOOKUP_MIN_INTERVAL_MS = 30000; // ≤2 req/min
 
 // Persistence
 function loadTrips() {
@@ -301,6 +362,138 @@ function loadClick() {
 }
 function saveClick() {
   localStorage.setItem('prado.click', JSON.stringify(S.click));
+}
+function loadPsi() {
+  try {
+    const p = JSON.parse(localStorage.getItem('prado.psi') || 'null');
+    if (p) S.psi = p;
+  } catch {}
+}
+function savePsi() {
+  localStorage.setItem('prado.psi', JSON.stringify(S.psi));
+}
+
+// ============================================================================
+// Road type lookup (Overpass API, cached + throttled)
+// ============================================================================
+const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+const ROAD_CACHE_KEY = 'prado.roadcache';
+const ROAD_MAX_CACHE = 500;
+
+function gridKey(lat, lon) { return `${lat.toFixed(4)},${lon.toFixed(4)}`; }
+function roadCacheGet(lat, lon) {
+  try {
+    const c = JSON.parse(localStorage.getItem(ROAD_CACHE_KEY) || '{}');
+    return c[gridKey(lat, lon)] || null;
+  } catch { return null; }
+}
+function roadCacheSet(lat, lon, value, tags) {
+  try {
+    const c = JSON.parse(localStorage.getItem(ROAD_CACHE_KEY) || '{}');
+    c[gridKey(lat, lon)] = { value, tags, t: Date.now() };
+    const keys = Object.keys(c);
+    if (keys.length > ROAD_MAX_CACHE) {
+      keys.sort((a, b) => c[a].t - c[b].t).slice(0, keys.length - ROAD_MAX_CACHE)
+          .forEach(k => delete c[k]);
+    }
+    localStorage.setItem(ROAD_CACHE_KEY, JSON.stringify(c));
+  } catch {}
+}
+
+async function overpassLookup(lat, lon, radius) {
+  const q = `// prado-ride https://naickert.github.io/prado-ride
+[out:json][timeout:10];
+way(around:${radius},${lat},${lon})[highway];
+out tags 1;`;
+  const res = await fetch(OVERPASS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'data=' + encodeURIComponent(q),
+  });
+  if (!res.ok) throw new Error(`Overpass HTTP ${res.status}`);
+  const json = await res.json();
+  return json.elements && json.elements[0] ? json.elements[0].tags : null;
+}
+
+function classifyRoad(tags) {
+  if (!tags) return 'offroad';
+  const hw = tags.highway;
+  const sf = (tags.surface || '').toLowerCase();
+  const tt = tags.tracktype;
+  const fwd = tags['4wd_only'] === 'yes';
+  const sm = tags.smoothness;
+  const SEALED = new Set(['asphalt','paved','concrete','chipseal','paving_stones','sett','metal']);
+  const UNSEALED = new Set(['unpaved','gravel','compacted','fine_gravel','dirt','earth','ground','sand','mud','grass']);
+  if (fwd || sm === 'very_horrible' || sm === 'horrible' || sm === 'impassable') return 'track_4wd';
+  if (hw === 'track') {
+    if (tt === 'grade4' || tt === 'grade5') return 'track_4wd';
+    return 'road_unsealed';
+  }
+  if (hw === 'path') return 'track_4wd';
+  if (['motorway','trunk','primary'].includes(hw)) {
+    return SEALED.has(sf) || !sf ? 'highway_sealed' : 'road_unsealed';
+  }
+  if (['secondary','tertiary','unclassified','residential','service','road','living_street','busway','pedestrian','cycleway'].includes(hw)) {
+    if (SEALED.has(sf)) return 'road_sealed';
+    if (UNSEALED.has(sf)) return 'road_unsealed';
+    return hw === 'unclassified' ? 'road_unsealed' : 'road_sealed';
+  }
+  return 'unknown';
+}
+
+async function maybeUpdateRoad(pos) {
+  const now = Date.now();
+  if (now < S.roadBackoffUntil) return;
+  if (now - S.road.fetchedAt < ROAD_LOOKUP_MIN_INTERVAL_MS) return;
+  const lat = pos.coords.latitude, lon = pos.coords.longitude;
+  // Cache hit?
+  const hit = roadCacheGet(lat, lon);
+  if (hit) {
+    S.road = { class: hit.value, tags: hit.tags || null, fetchedAt: now, lat, lon };
+    renderRoad();
+    return;
+  }
+  // Debounce immediately so a fast GPS stream doesn't fire concurrent requests
+  S.road.fetchedAt = now;
+  try {
+    let tags = await overpassLookup(lat, lon, 50);
+    if (!tags) tags = await overpassLookup(lat, lon, 250);
+    const cls = classifyRoad(tags);
+    S.road = { class: cls, tags, fetchedAt: now, lat, lon };
+    roadCacheSet(lat, lon, cls, tags);
+    renderRoad();
+  } catch (e) {
+    console.warn('road lookup failed', e);
+    // Exponential backoff: 60s, then 2min, then 4min up to 10min
+    const lastBackoff = S.roadBackoffUntil ? (now - S.roadBackoffUntil) : 60000;
+    const next = Math.min(600000, Math.max(60000, lastBackoff * 2));
+    S.roadBackoffUntil = now + next;
+  }
+}
+
+function renderRoad() {
+  const badge = document.getElementById('roadBadge');
+  const detail = document.getElementById('roadDetail');
+  if (!badge || !detail) return;
+  const labels = {
+    highway_sealed: ['Sealed highway', 'sealed'],
+    road_sealed: ['Sealed road', 'sealed'],
+    road_unsealed: ['Dirt / gravel', 'unsealed'],
+    track_4wd: ['4WD track', 'track'],
+    offroad: ['Off-road', 'offroad'],
+    unknown: ['—', 'unknown'],
+  };
+  const [text, cls] = labels[S.road.class] || labels.unknown;
+  badge.className = 'road-badge ' + cls;
+  badge.textContent = text;
+  if (S.road.tags) {
+    const t = S.road.tags;
+    detail.textContent = [t.name, t.highway, t.surface, t.tracktype].filter(Boolean).join(' · ');
+  } else if (S.road.class === 'offroad') {
+    detail.textContent = 'No road within 250 m — off-road';
+  } else {
+    detail.textContent = 'Waiting for GPS fix…';
+  }
 }
 
 // ============================================================================
@@ -370,6 +563,8 @@ function onGps(pos) {
     ? pos.coords.speed * 3.6 : null;
   document.getElementById('speedDisplay').textContent =
     kmh != null ? `${kmh.toFixed(0)} km/h` : '— km/h';
+  // Road type lookup (throttled + cached internally)
+  maybeUpdateRoad(pos);
   if (S.recording && S.trip) {
     S.trip.gps.push({
       t: Date.now(),
@@ -378,6 +573,7 @@ function onGps(pos) {
       alt: pos.coords.altitude,
       speed: pos.coords.speed,
       course: pos.coords.heading,
+      road: S.road.class,
       hAcc: pos.coords.accuracy,
     });
   }
@@ -618,9 +814,14 @@ function startTrip() {
     startedAt: Date.now(),
     endedAt: null,
     click: { ...S.click },
+    psi: { ...S.psi },
     samples: [],
     gps: [],
-    clickChanges: [{ t: Date.now(), front: S.click.front, rear: S.click.rear, note: 'start' }],
+    adjustments: [{ t: Date.now(),
+      front: S.click.front, rear: S.click.rear,
+      psiF: S.psi.front, psiR: S.psi.rear,
+      note: 'start' }],
+    roadHistogram: {},
   };
   // Reset live aggregates
   S.vdvSumPow4 = 0;
@@ -660,6 +861,12 @@ function stopTrip() {
   saveTrips();
   S.trip = null;
   S.recording = false;
+  // Reset live aggregates so dashboard returns to baseline
+  S.vdvSumPow4 = 0;
+  S.vdvDuration = 0;
+  S.rollMaxAbs = 0;
+  S.latGMaxAbs = 0;
+  S.lastVdvT = null;
   document.getElementById('liveDot').classList.remove('live');
   document.getElementById('btnStart').classList.remove('hidden');
   document.getElementById('footer-trip').classList.add('hidden');
@@ -701,15 +908,22 @@ function haversine(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-function logClickChange() {
+function logAdjustment() {
   if (!S.trip) return;
-  S.trip.clickChanges.push({
+  S.trip.adjustments.push({
     t: Date.now(),
     front: S.click.front, rear: S.click.rear,
+    psiF: S.psi.front, psiR: S.psi.rear,
     note: ''
   });
-  showAlert('info', `Click change logged: F${S.click.front} / R${S.click.rear}`);
+  showAlert('info', `Logged · Click F${S.click.front}/R${S.click.rear} · ${S.psi.front}/${S.psi.rear} psi`);
   setTimeout(clearAlerts, 2500);
+}
+
+function adjustPsi(which, delta) {
+  S.psi[which] = Math.max(PSI_MIN, Math.min(PSI_MAX, S.psi[which] + delta));
+  document.getElementById('psi' + which.charAt(0).toUpperCase() + which.slice(1)).textContent = S.psi[which];
+  savePsi();
 }
 
 // ============================================================================
@@ -784,7 +998,7 @@ function renderTrips() {
     div.innerHTML = `
       <div class="head">
         <div class="name">${d.toLocaleString()}</div>
-        <div class="meta">F${t.click.front}/R${t.click.rear}</div>
+        <div class="meta">F${t.click.front}/R${t.click.rear} · ${t.psi?(t.psi.front+'/'+t.psi.rear+' psi'):''}</div>
       </div>
       <div class="stats">
         <span>${dur}</span>
@@ -814,6 +1028,9 @@ function renderDiag() {
     calibrated: !!S.calibration,
     gravityMag: S.calibration ? S.calibration.gMag.toFixed(3) : null,
     storedTrips: S.trips.length,
+    road: S.road.class,
+    roadTags: S.road.tags,
+    roadBackoffActive: S.roadBackoffUntil > Date.now(),
     userAgent: navigator.userAgent,
   }, null, 2);
 }
@@ -863,7 +1080,7 @@ function download(name, data, mime) {
 document.getElementById('btnGrant').onclick = requestPermissions;
 document.getElementById('btnStart').onclick = startTrip;
 document.getElementById('btnStop').onclick = stopTrip;
-document.getElementById('btnLogClick').onclick = logClickChange;
+document.getElementById('btnLogAdj').onclick = logAdjustment;
 document.getElementById('btnCalibrate').onclick = startCalibration;
 document.getElementById('btnWipe').onclick = () => {
   if (confirm('Delete ALL trips and reset?')) {
@@ -883,7 +1100,11 @@ for (const t of document.querySelectorAll('.tab')) {
 
 // Init
 loadClick();
+loadPsi();
 renderClickPickers();
+document.getElementById('psiFront').textContent = S.psi.front;
+document.getElementById('psiRear').textContent = S.psi.rear;
+renderRoad();
 showView('perm');
 document.getElementById('permHttps').textContent = window.isSecureContext ? 'OK' : 'INSECURE';
 document.getElementById('permHttps').className = window.isSecureContext ? 'ok' : 'bad';
