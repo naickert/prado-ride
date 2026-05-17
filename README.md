@@ -1,6 +1,6 @@
 # Prado Ride
 
-Personal-use iPhone web app to measure ride comfort and safety in a 2022 Toyota Prado 150 with Tough Dog Foam Cell shocks (9-click) and 285/70R17 mud terrain tyres.
+Personal-use iPhone web app to measure ride comfort and safety in a 2022 Toyota Prado 150 with Tough Dog Foam Cell shocks (9-click) and 265/65R17 mud terrain tyres (OEM size).
 
 Uses the phone's motion sensors and GPS via standard web APIs. No server, no tracking — everything stays in the browser's local storage.
 

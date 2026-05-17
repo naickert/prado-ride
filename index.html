@@ -513,7 +513,7 @@
       <div style="margin-top:8px; color:#ccc; font-size:14px;">
         2022 Toyota Prado 150<br>
         Tough Dog Foam Cell 41mm (9-click)<br>
-        285/70R17 mud-terrain<br>
+        265/65R17 mud-terrain (OEM size)<br>
         SSF ≈ 1.15 (track 1605mm, CoG ~770mm)
       </div>
       <div style="margin-top:14px; padding:8px; background:#1c1c1e; border-radius:8px;">
@@ -599,7 +599,7 @@ const S = {
   trip: null,
   trips: loadTrips(),
   click: { front: 5, rear: 5 },
-  psi: { front: 38, rear: 36 },
+  psi: { front: 36, rear: 34 },
   psiUnit: 'psi', // 'psi' | 'kpa' | 'bar' — display only; internal storage always in PSI
   calibration: null,        // { R: 3x3 phone→vehicle, gravMag }
   calibBuffer: [],          // gravity samples during calibration
@@ -943,68 +943,70 @@ function renderWeather() {
 }
 
 // ============================================================================
-// Recommendation engine — Tough Dog FC 41mm 9-click + 285/70R17 MT (Prado VX-L)
+// Recommendation engine — Tough Dog FC 41mm 9-click + 265/65R17 MT (Prado VX-L)
+// PSI tuned for OEM Prado tyre size — smaller air volume and lower sidewall
+// than 285/70R17, so highway baseline aligns with Toyota door placard (~33psi).
 // ============================================================================
 const REC_LOOKUP = {
   highway_sealed: {
-    clear:      { click:{front:6,rear:5}, psi:{front:40,rear:38}, confidence:'high',
+    clear:      { click:{front:6,rear:5}, psi:{front:38,rear:36}, confidence:'high',
                   reason:'Dry highway — firm clicks for stability, full highway pressure.' },
-    cloudy:     { click:{front:6,rear:5}, psi:{front:40,rear:38}, confidence:'high',
+    cloudy:     { click:{front:6,rear:5}, psi:{front:38,rear:36}, confidence:'high',
                   reason:'Dry highway — firm clicks for stability.' },
-    light_rain: { click:{front:5,rear:5}, psi:{front:40,rear:38}, confidence:'high',
+    light_rain: { click:{front:5,rear:5}, psi:{front:38,rear:36}, confidence:'high',
                   reason:'Wet highway — soften 1 click for compliance, keep psi up for aquaplaning resistance.' },
-    heavy_rain: { click:{front:5,rear:4}, psi:{front:38,rear:36}, confidence:'high',
+    heavy_rain: { click:{front:5,rear:4}, psi:{front:36,rear:34}, confidence:'high',
                   reason:'Heavy rain — softer clicks for grip, drop psi 2 for larger contact patch.' },
-    snow:       { click:{front:4,rear:4}, psi:{front:34,rear:32}, confidence:'low',
+    snow:       { click:{front:4,rear:4}, psi:{front:32,rear:30}, confidence:'low',
                   reason:'Snow — soft + lower psi for grip; drive to conditions.' },
   },
   road_sealed: {
-    clear:      { click:{front:5,rear:4}, psi:{front:38,rear:36}, confidence:'high',
+    clear:      { click:{front:5,rear:4}, psi:{front:36,rear:34}, confidence:'high',
                   reason:'Sealed B-road dry — balanced clicks, slightly lower psi than highway for comfort.' },
-    cloudy:     { click:{front:5,rear:4}, psi:{front:38,rear:36}, confidence:'high',
+    cloudy:     { click:{front:5,rear:4}, psi:{front:36,rear:34}, confidence:'high',
                   reason:'Sealed B-road — balanced clicks for mixed surface quality.' },
-    light_rain: { click:{front:4,rear:4}, psi:{front:38,rear:36}, confidence:'high',
+    light_rain: { click:{front:4,rear:4}, psi:{front:36,rear:34}, confidence:'high',
                   reason:'Wet B-road — softer for compliance over painted lines and wet patches.' },
-    heavy_rain: { click:{front:4,rear:3}, psi:{front:36,rear:34}, confidence:'high',
+    heavy_rain: { click:{front:4,rear:3}, psi:{front:34,rear:32}, confidence:'high',
                   reason:'Heavy rain on backroads — soft for traction, slightly bigger contact patch.' },
-    snow:       { click:{front:3,rear:3}, psi:{front:32,rear:30}, confidence:'low',
+    snow:       { click:{front:3,rear:3}, psi:{front:30,rear:28}, confidence:'low',
                   reason:'Snow — soft + lower psi for grip.' },
   },
   road_unsealed: {
-    clear:      { click:{front:6,rear:5}, psi:{front:30,rear:28}, confidence:'med',
+    clear:      { click:{front:6,rear:5}, psi:{front:28,rear:26}, confidence:'med',
                   reason:'Dry gravel — firm to prevent shock pack-down (Tough Dog corrugation advice).' },
-    cloudy:     { click:{front:6,rear:5}, psi:{front:30,rear:28}, confidence:'med',
+    cloudy:     { click:{front:6,rear:5}, psi:{front:28,rear:26}, confidence:'med',
                   reason:'Dry gravel — firm to prevent pack-down.' },
-    light_rain: { click:{front:5,rear:4}, psi:{front:28,rear:26}, confidence:'med',
+    light_rain: { click:{front:5,rear:4}, psi:{front:26,rear:24}, confidence:'med',
                   reason:'Damp gravel — slightly softer for grip on slick surface.' },
-    heavy_rain: { click:{front:4,rear:4}, psi:{front:26,rear:24}, confidence:'med',
+    heavy_rain: { click:{front:4,rear:4}, psi:{front:24,rear:22}, confidence:'med',
                   reason:'Wet/muddy gravel — softer + lower psi maximises contact and grip.' },
-    snow:       { click:{front:3,rear:3}, psi:{front:24,rear:22}, confidence:'low',
+    snow:       { click:{front:3,rear:3}, psi:{front:22,rear:20}, confidence:'low',
                   reason:'Snowy gravel — soft, low psi, careful.' },
   },
   track_4wd: {
-    clear:      { click:{front:4,rear:4}, psi:{front:24,rear:22}, confidence:'med',
+    clear:      { click:{front:4,rear:4}, psi:{front:22,rear:20}, confidence:'med',
                   reason:'4WD track — mid clicks for varied terrain, low psi for tyre conformity.' },
-    cloudy:     { click:{front:4,rear:4}, psi:{front:24,rear:22}, confidence:'med',
+    cloudy:     { click:{front:4,rear:4}, psi:{front:22,rear:20}, confidence:'med',
                   reason:'4WD track — mid clicks, low psi for conformity.' },
-    light_rain: { click:{front:3,rear:3}, psi:{front:22,rear:20}, confidence:'med',
+    light_rain: { click:{front:3,rear:3}, psi:{front:20,rear:18}, confidence:'med',
                   reason:'Damp 4WD track — soften for grip on slippery roots/rocks.' },
-    heavy_rain: { click:{front:3,rear:3}, psi:{front:20,rear:18}, confidence:'low',
+    heavy_rain: { click:{front:3,rear:3}, psi:{front:18,rear:16}, confidence:'low',
                   reason:'Wet 4WD track — soft + low psi for traction. Reassess at every obstacle.' },
-    snow:       { click:{front:3,rear:3}, psi:{front:20,rear:18}, confidence:'low',
+    snow:       { click:{front:3,rear:3}, psi:{front:18,rear:16}, confidence:'low',
                   reason:'Snowy track — soft, low psi.' },
   },
   offroad: {
-    clear:      { click:{front:3,rear:3}, psi:{front:20,rear:18}, confidence:'low',
-                  reason:'Technical offroad — soft for articulation. Adjust to specific surface (sand/rock).' },
-    cloudy:     { click:{front:3,rear:3}, psi:{front:20,rear:18}, confidence:'low',
+    clear:      { click:{front:3,rear:3}, psi:{front:18,rear:16}, confidence:'low',
+                  reason:'Technical offroad — soft for articulation. Adjust to specific surface (sand/rock). 265/65 sidewall is lower than 285/70 — don\'t go below 14 psi on rocks.' },
+    cloudy:     { click:{front:3,rear:3}, psi:{front:18,rear:16}, confidence:'low',
                   reason:'Offroad — soft for articulation; tune to surface.' },
-    light_rain: { click:{front:2,rear:3}, psi:{front:18,rear:16}, confidence:'low',
-                  reason:'Wet offroad — very soft front for compliance. Watch sidewalls on rock.' },
-    heavy_rain: { click:{front:2,rear:2}, psi:{front:16,rear:14}, confidence:'low',
-                  reason:'Severe wet offroad — softest practical setting; air down further only if sand/mud.' },
-    snow:       { click:{front:2,rear:2}, psi:{front:16,rear:14}, confidence:'low',
-                  reason:'Snow offroad — soft, very low psi for footprint.' },
+    light_rain: { click:{front:2,rear:3}, psi:{front:16,rear:14}, confidence:'low',
+                  reason:'Wet offroad — very soft front for compliance. Watch sidewalls on rock — 265/65 has less sidewall than 285/70.' },
+    heavy_rain: { click:{front:2,rear:2}, psi:{front:14,rear:14}, confidence:'low',
+                  reason:'Severe wet offroad — softest practical setting; air down further only on sand/mud, not rock.' },
+    snow:       { click:{front:2,rear:2}, psi:{front:14,rear:14}, confidence:'low',
+                  reason:'Snow offroad — soft, low psi for footprint.' },
   },
 };
 const REC_COMFORT_THRESHOLD = {
@@ -1188,6 +1190,19 @@ const SEG_MIN_DURATION_S = 30;     // min segment length to commit
 const SEG_MIN_SAMPLES = 25;        // min samples (at 1Hz, 25s of data)
 const POSTERIOR_PRIOR_WEIGHT = 5;  // pseudo-count for prior in posterior
 const BAYESIAN_ACTIVATE_N = 10;    // total obs on this terrain before overriding
+
+// Schema version — bump when the recommendation table changes meaningfully
+// (e.g. tyre size change) so stored Bayesian observations get auto-wiped.
+const SETUP_SCHEMA_VERSION = 2; // bumped from 1 -> 2 on 265/65R17 correction
+function migrateSchemaIfNeeded() {
+  const stored = parseInt(localStorage.getItem('prado.setupVersion') || '1', 10);
+  if (stored < SETUP_SCHEMA_VERSION) {
+    localStorage.removeItem('prado.obs');
+    S.learning.observations = [];
+    localStorage.setItem('prado.setupVersion', String(SETUP_SCHEMA_VERSION));
+    console.log(`[prado-ride] Schema upgraded ${stored} -> ${SETUP_SCHEMA_VERSION}; observations wiped`);
+  }
+}
 
 function loadObservations() {
   try { S.learning.observations = JSON.parse(localStorage.getItem('prado.obs') || '[]'); }
@@ -2076,14 +2091,15 @@ function buildSpeedSafetyChart() {
   const ladderPath = dangerPts.map((p, i) => (i === 0 ? 'M' : 'L') + p).join(' ');
 
   // Terrain markers
+  // Markers tuned for 265/65R17 MT (smaller tyre than 285/70 — slightly lower kPa per band)
   const terrains = [
-    { name: 'Highway',  kpa: 276, kmh: 105, color: '#5ac8fa', dx: 6, dy: 0 },
-    { name: 'B-road',   kpa: 262, kmh: 88,  color: '#5ac8fa', dx: 6, dy: 0 },
-    { name: 'Gravel',   kpa: 207, kmh: 68,  color: '#ffcc00', dx: -6, dy: -2, anchor: 'end' },
-    { name: 'Corrug.',  kpa: 221, kmh: 78,  color: '#ffcc00', dx: 6, dy: 0 },
-    { name: '4WD track',kpa: 158, kmh: 45,  color: '#ff9500', dx: 6, dy: 0 },
-    { name: 'Sand',     kpa: 117, kmh: 32,  color: '#d35400', dx: 6, dy: 5 },
-    { name: 'Off-road', kpa: 138, kmh: 22,  color: '#ff3b30', dx: 6, dy: -2 },
+    { name: 'Highway',  kpa: 262, kmh: 105, color: '#5ac8fa', dx: 6, dy: 0 },
+    { name: 'B-road',   kpa: 248, kmh: 88,  color: '#5ac8fa', dx: 6, dy: 0 },
+    { name: 'Gravel',   kpa: 193, kmh: 68,  color: '#ffcc00', dx: -6, dy: -2, anchor: 'end' },
+    { name: 'Corrug.',  kpa: 207, kmh: 78,  color: '#ffcc00', dx: 6, dy: 0 },
+    { name: '4WD track',kpa: 152, kmh: 45,  color: '#ff9500', dx: 6, dy: 0 },
+    { name: 'Sand',     kpa: 110, kmh: 32,  color: '#d35400', dx: 6, dy: 5 },
+    { name: 'Off-road', kpa: 124, kmh: 22,  color: '#ff3b30', dx: 6, dy: -2 },
     { name: 'Rocks',    kpa: 97,  kmh: 8,   color: '#a93226', dx: 6, dy: 4 },
   ];
   const markersSvg = terrains.map(t => {
@@ -2322,6 +2338,7 @@ loadClick();
 loadPsi();
 loadPsiUnit();
 loadLoadState();
+migrateSchemaIfNeeded();
 loadObservations();
 // Wire pressure unit picker
 function renderPsiUnitPicker() {
