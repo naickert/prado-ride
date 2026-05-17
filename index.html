@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#0a0a0a">
+<title>Prado Ride</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    background: #0a0a0a; color: #f0f0f0;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    font-size: 17px; line-height: 1.35;
+    overscroll-behavior: none; touch-action: manipulation;
+    height: 100vh; height: 100dvh; overflow: hidden;
+  }
+  body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  .app { display: flex; flex-direction: column; height: 100%; max-width: 600px; margin: 0 auto; }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-bottom: 1px solid #222;
+    font-weight: 600; letter-spacing: 0.02em;
+  }
+  .topbar .title { display: flex; align-items: center; gap: 8px; font-size: 18px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #555; transition: background 0.2s; }
+  .dot.live { background: #ff3b30; box-shadow: 0 0 10px #ff3b30; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 50% { opacity: 0.5; } }
+  .tabs { display: flex; border-bottom: 1px solid #222; background: #0a0a0a; }
+  .tab {
+    flex: 1; padding: 14px 0; text-align: center; font-weight: 500;
+    color: #888; background: none; border: none; font-size: 15px;
+  }
+  .tab.active { color: #fff; border-bottom: 2px solid #ff9500; }
+  .view { flex: 1; overflow-y: auto; padding: 16px; -webkit-overflow-scrolling: touch; }
+  .hidden { display: none !important; }
+
+  /* Permission screen */
+  .perm {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; text-align: center; padding: 32px;
+  }
+  .perm h1 { font-size: 28px; margin: 0 0 8px; }
+  .perm p { color: #aaa; margin: 8px 0 24px; max-width: 340px; }
+  .perm-status { margin-top: 24px; font-size: 14px; color: #888; }
+  .perm-status .row { display: flex; justify-content: space-between; gap: 16px; padding: 4px 0; }
+  .perm-status .ok { color: #34c759; }
+  .perm-status .bad { color: #ff3b30; }
+
+  /* Buttons */
+  button.primary {
+    background: #ff9500; color: #000; border: none; padding: 16px 28px;
+    border-radius: 14px; font-size: 17px; font-weight: 600; cursor: pointer;
+    min-height: 56px;
+  }
+  button.primary:disabled { background: #444; color: #888; }
+  button.ghost {
+    background: #1c1c1e; color: #fff; border: 1px solid #333;
+    padding: 12px 18px; border-radius: 10px; font-size: 15px; font-weight: 500;
+  }
+  button.danger { background: #ff3b30; color: #fff; }
+
+  /* Live dashboard */
+  .live-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;
+  }
+  .card {
+    background: #141414; border-radius: 14px; padding: 14px;
+    border: 1px solid #222;
+  }
+  .card.span-2 { grid-column: 1 / -1; }
+  .card .label { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 0.06em; }
+  .card .value { font-size: 32px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .card .unit { font-size: 14px; color: #888; font-weight: 400; margin-left: 4px; }
+  .card .sub { font-size: 12px; color: #aaa; margin-top: 4px; }
+  .comfort-bar {
+    height: 8px; background: linear-gradient(to right, #34c759, #ffcc00, #ff9500, #ff3b30);
+    border-radius: 4px; margin-top: 12px; position: relative;
+  }
+  .comfort-bar::after {
+    content: ''; position: absolute; top: -4px; width: 4px; height: 16px;
+    background: #fff; border-radius: 2px;
+    left: var(--comfort-pos, 0%); transition: left 0.3s;
+  }
+  .comfort-label { font-size: 14px; color: #ccc; margin-top: 8px; text-align: center; }
+
+  .controls {
+    display: flex; gap: 10px; margin-top: 12px;
+  }
+  .controls button { flex: 1; min-height: 56px; }
+
+  /* Click log */
+  .click-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+  .click-pick { display: flex; gap: 6px; flex-wrap: wrap; }
+  .click-pick button {
+    width: 36px; height: 36px; border-radius: 8px; border: 1px solid #333;
+    background: #1c1c1e; color: #fff; font-weight: 600;
+  }
+  .click-pick button.sel { background: #ff9500; color: #000; border-color: #ff9500; }
+
+  /* Trip list */
+  .trip-item {
+    padding: 14px; background: #141414; border-radius: 12px;
+    margin-bottom: 10px; display: flex; flex-direction: column; gap: 4px;
+  }
+  .trip-item .head { display: flex; justify-content: space-between; align-items: baseline; }
+  .trip-item .name { font-weight: 600; }
+  .trip-item .meta { font-size: 12px; color: #888; }
+  .trip-item .stats { display: flex; gap: 16px; font-size: 13px; color: #ccc; margin-top: 4px; }
+  .trip-item .stats span { font-variant-numeric: tabular-nums; }
+
+  .empty { color: #666; text-align: center; padding: 48px 16px; }
+
+  /* Footer actions */
+  .footer {
+    padding: 12px 16px; border-top: 1px solid #222;
+    display: flex; gap: 10px; background: #0a0a0a;
+  }
+  .footer button { flex: 1; }
+
+  .alert {
+    background: #ff3b30; color: #fff; padding: 12px 16px; border-radius: 10px;
+    margin-bottom: 12px; font-weight: 500; font-size: 14px;
+  }
+  .alert.warn { background: #ff9500; color: #000; }
+  .alert.info { background: #1c1c1e; color: #ccc; border: 1px solid #333; }
+
+  details { background: #141414; border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; border: 1px solid #222; }
+  details summary { font-weight: 600; cursor: pointer; outline: none; }
+  details pre { font-size: 11px; color: #aaa; overflow-x: auto; margin: 8px 0 0; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="title"><span class="dot" id="liveDot"></span> Prado Ride</div>
+    <div id="speedDisplay" style="font-variant-numeric: tabular-nums; color:#aaa; font-size: 14px;">—</div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-view="live">Live</button>
+    <button class="tab" data-view="trips">Trips</button>
+    <button class="tab" data-view="settings">Settings</button>
+  </div>
+
+  <!-- Permission view (shown first) -->
+  <div class="view" id="view-perm">
+    <div class="perm">
+      <h1>Prado Ride</h1>
+      <p>Measures ride comfort &amp; safety using your phone sensors. Tap below to grant access to motion and location.</p>
+      <button class="primary" id="btnGrant">Grant Sensor Access</button>
+      <div class="perm-status" id="permStatus">
+        <div class="row"><span>Motion</span><span id="permMotion">—</span></div>
+        <div class="row"><span>Location</span><span id="permLoc">—</span></div>
+        <div class="row"><span>Secure context (HTTPS)</span><span id="permHttps">—</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live view -->
+  <div class="view hidden" id="view-live">
+    <div id="liveAlerts"></div>
+
+    <div class="live-grid">
+      <div class="card">
+        <div class="label">Comfort (Wk-RMS)</div>
+        <div class="value"><span id="wkRms">0.00</span><span class="unit">m/s²</span></div>
+        <div class="sub" id="wkRmsLabel">—</div>
+      </div>
+      <div class="card">
+        <div class="label">Cumulative VDV</div>
+        <div class="value"><span id="vdv">0.00</span><span class="unit">m/s^1.75</span></div>
+        <div class="sub" id="vdvLabel">Daily limit 8.5</div>
+      </div>
+      <div class="card">
+        <div class="label">Roll / Pitch</div>
+        <div class="value"><span id="rollPitch">0° / 0°</span></div>
+        <div class="sub" id="rollMax">Peak 0°</div>
+      </div>
+      <div class="card">
+        <div class="label">Lateral g</div>
+        <div class="value"><span id="latG">0.00</span><span class="unit">g</span></div>
+        <div class="sub" id="latGMax">Peak 0.00</div>
+      </div>
+      <div class="card span-2">
+        <div class="label">Comfort</div>
+        <div class="comfort-bar" style="--comfort-pos: 0%"></div>
+        <div class="comfort-label" id="comfortText">— stationary —</div>
+      </div>
+      <div class="card span-2">
+        <div class="label">Current click setting</div>
+        <div class="click-row">
+          <div style="font-size: 14px; color:#aaa;">Front</div>
+          <div class="click-pick" id="clickFront"></div>
+        </div>
+        <div class="click-row">
+          <div style="font-size: 14px; color:#aaa;">Rear &nbsp;</div>
+          <div class="click-pick" id="clickRear"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="primary" id="btnStart">Start trip</button>
+      <button class="ghost" id="btnCalibrate">Re-calibrate</button>
+    </div>
+  </div>
+
+  <!-- Trips view -->
+  <div class="view hidden" id="view-trips">
+    <div id="tripList"></div>
+  </div>
+
+  <!-- Settings view -->
+  <div class="view hidden" id="view-settings">
+    <details open>
+      <summary>Vehicle</summary>
+      <div style="margin-top:8px; color:#ccc; font-size:14px;">
+        2022 Toyota Prado 150<br>
+        Tough Dog Foam Cell 41mm (9-click)<br>
+        285/70R17 mud-terrain<br>
+        SSF ≈ 1.15 (track 1605mm, CoG ~770mm)
+      </div>
+    </details>
+    <details>
+      <summary>About the metrics</summary>
+      <div style="margin-top:8px; color:#ccc; font-size:13px;">
+        <b>Wk-RMS</b> — 1-second RMS of vertical acceleration (simplified, no full Wk biquad; uses high-pass at 0.4 Hz). ISO 2631-1 comfort: &lt;0.315 comfortable, &gt;2.0 extremely uncomfortable.<br><br>
+        <b>VDV</b> — 4th-power vibration dose value, cumulative. HGCZ daily limit 8.5–17.<br><br>
+        <b>Lateral g / Roll</b> — vehicle-frame lateral acceleration and roll angle from gravity vector.<br><br>
+        <b>Calibration</b> — done at trip start while stationary, using gravity to find vertical and GPS course to find longitudinal.<br><br>
+        Sample rate: ~60 Hz (browser-limited). Native Swift app would hit 800 Hz.
+      </div>
+    </details>
+    <details>
+      <summary>Diagnostics</summary>
+      <pre id="diag">—</pre>
+    </details>
+    <details>
+      <summary>Danger zone</summary>
+      <div style="margin-top:8px;">
+        <button class="ghost danger" id="btnWipe">Delete all trips</button>
+      </div>
+    </details>
+  </div>
+
+  <div class="footer hidden" id="footer-trip">
+    <button class="ghost" id="btnLogClick">Log click change</button>
+    <button class="primary danger" id="btnStop">Stop trip</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ============================================================================
+// State
+// ============================================================================
+const S = {
+  perms: { motion: false, location: false },
+  recording: false,
+  trip: null,
+  trips: loadTrips(),
+  click: { front: 5, rear: 5 },
+  calibration: null,        // { R: 3x3 phone→vehicle, gravMag }
+  calibBuffer: [],          // gravity samples during calibration
+  lastGps: null,
+  lastSampleT: 0,
+  sampleCount: 0,
+  sampleRateEMA: 0,
+
+  // Live aggregates
+  wkRmsBuffer: [],          // last 1s of (t, az_vehicle)
+  wkRms: 0,
+  vdvSumPow4: 0,            // sum of az^4 * dt
+  vdvDuration: 0,           // total seconds
+  rollDeg: 0, pitchDeg: 0,
+  rollMaxAbs: 0,
+  latG: 0, latGMaxAbs: 0,
+};
+const SAMPLE_HZ_NOMINAL = 60;
+const G = 9.80665;
+const CLICK_MIN = 1, CLICK_MAX = 9;
+
+// Persistence
+function loadTrips() {
+  try { return JSON.parse(localStorage.getItem('prado.trips') || '[]'); }
+  catch { return []; }
+}
+function saveTrips() {
+  localStorage.setItem('prado.trips', JSON.stringify(S.trips));
+}
+function loadClick() {
+  try {
+    const c = JSON.parse(localStorage.getItem('prado.click') || 'null');
+    if (c) S.click = c;
+  } catch {}
+}
+function saveClick() {
+  localStorage.setItem('prado.click', JSON.stringify(S.click));
+}
+
+// ============================================================================
+// Permissions
+// ============================================================================
+async function requestPermissions() {
+  document.getElementById('permHttps').textContent = window.isSecureContext ? 'OK' : 'INSECURE — sensors will be blocked';
+  document.getElementById('permHttps').className = window.isSecureContext ? 'ok' : 'bad';
+
+  // Motion (iOS 13+ requires explicit permission via user gesture)
+  try {
+    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+      const r = await DeviceMotionEvent.requestPermission();
+      S.perms.motion = (r === 'granted');
+    } else {
+      S.perms.motion = true; // older browsers / android
+    }
+  } catch (e) {
+    S.perms.motion = false;
+  }
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    try { await DeviceOrientationEvent.requestPermission(); } catch {}
+  }
+  document.getElementById('permMotion').textContent = S.perms.motion ? 'granted' : 'denied';
+  document.getElementById('permMotion').className = S.perms.motion ? 'ok' : 'bad';
+
+  // Location
+  try {
+    await new Promise((res, rej) => {
+      navigator.geolocation.getCurrentPosition(
+        p => { S.perms.location = true; S.lastGps = p; res(); },
+        err => { S.perms.location = false; rej(err); },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      );
+    });
+  } catch (e) {}
+  document.getElementById('permLoc').textContent = S.perms.location ? 'granted' : 'denied';
+  document.getElementById('permLoc').className = S.perms.location ? 'ok' : 'bad';
+
+  if (S.perms.motion && S.perms.location) {
+    startSensors();
+    showView('live');
+  }
+}
+
+// ============================================================================
+// Sensors
+// ============================================================================
+let geoWatchId = null;
+let wakeLock = null;
+
+function startSensors() {
+  window.addEventListener('devicemotion', onMotion, true);
+  window.addEventListener('deviceorientation', onOrient, true);
+  geoWatchId = navigator.geolocation.watchPosition(onGps, () => {},
+    { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 });
+  // Try to keep screen on while in-app
+  if ('wakeLock' in navigator) {
+    navigator.wakeLock.request('screen').then(w => wakeLock = w).catch(() => {});
+  }
+}
+
+function onGps(pos) {
+  S.lastGps = pos;
+  const kmh = (pos.coords.speed != null && pos.coords.speed >= 0)
+    ? pos.coords.speed * 3.6 : null;
+  document.getElementById('speedDisplay').textContent =
+    kmh != null ? `${kmh.toFixed(0)} km/h` : '— km/h';
+  if (S.recording && S.trip) {
+    S.trip.gps.push({
+      t: Date.now(),
+      lat: pos.coords.latitude,
+      lon: pos.coords.longitude,
+      alt: pos.coords.altitude,
+      speed: pos.coords.speed,
+      course: pos.coords.heading,
+      hAcc: pos.coords.accuracy,
+    });
+  }
+}
+
+// Simple 2nd-order Butterworth high-pass @ 0.4 Hz (assumes ~60 Hz sample rate)
+// Removes DC + slow drift so RMS reflects vibration, not gravity residual.
+const HP = (() => {
+  // Coefficients for fc=0.4Hz, fs=60Hz, Q=0.707
+  const b0 = 0.97803048, b1 = -1.95606097, b2 = 0.97803048;
+  const a1 = -1.95557824, a2 = 0.95654369;
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  return {
+    reset() { x1 = x2 = y1 = y2 = 0; },
+    filter(x) {
+      const y = b0*x + b1*x1 + b2*x2 - a1*y1 - a2*y2;
+      x2 = x1; x1 = x; y2 = y1; y1 = y;
+      return y;
+    }
+  };
+})();
+
+function onMotion(ev) {
+  const now = performance.now();
+  // Track sample rate
+  if (S.lastSampleT) {
+    const dt = (now - S.lastSampleT) / 1000;
+    const inst = 1 / dt;
+    S.sampleRateEMA = S.sampleRateEMA ? 0.95 * S.sampleRateEMA + 0.05 * inst : inst;
+  }
+  S.lastSampleT = now;
+  S.sampleCount++;
+
+  // accelerationIncludingGravity is in m/s² on iOS Safari
+  const aig = ev.accelerationIncludingGravity;
+  const ua  = ev.acceleration;
+  const rr  = ev.rotationRate; // deg/s
+
+  if (!aig) return;
+  // Phone-frame: x right, y up (along phone), z out of screen.
+  // iOS reports negated values; for our purposes the SIGN of axes is handled by calibration.
+
+  // Always-on: track gravity vector for calibration & roll/pitch (low-pass)
+  // We approximate gravity by low-passing accelerationIncludingGravity.
+  if (!S._g) S._g = { x: aig.x, y: aig.y, z: aig.z };
+  const alpha = 0.02;
+  S._g.x = (1-alpha)*S._g.x + alpha*aig.x;
+  S._g.y = (1-alpha)*S._g.y + alpha*aig.y;
+  S._g.z = (1-alpha)*S._g.z + alpha*aig.z;
+
+  // Compute "user acceleration" if not provided (subtract gravity LPF)
+  const userAccel = ua && ua.x != null ? ua :
+    { x: aig.x - S._g.x, y: aig.y - S._g.y, z: aig.z - S._g.z };
+
+  // Calibration mode: collect gravity samples
+  if (S.calibBuffer && S.calibBuffer.length < 60) {
+    S.calibBuffer.push([S._g.x, S._g.y, S._g.z]);
+    return; // don't compute metrics during calibration
+  }
+  if (S.calibBuffer && S.calibBuffer.length >= 60 && !S.calibration) {
+    finishCalibration();
+  }
+  if (!S.calibration) return;
+
+  // Transform user-accel into vehicle frame
+  const R = S.calibration.R;
+  const aV = mat3MulVec(R, [userAccel.x, userAccel.y, userAccel.z]);
+  const ax_v = aV[0], ay_v = aV[1], az_v = aV[2]; // x=lateral, y=longitudinal, z=vertical
+
+  // Roll & pitch from gravity vector (phone frame → vehicle frame)
+  const gV = mat3MulVec(R, [S._g.x, S._g.y, S._g.z]);
+  // After rotation, vehicle's static gravity is (0,0,-g). Live tilt:
+  const gMag = Math.hypot(gV[0], gV[1], gV[2]) || 1;
+  // Roll = rotation about Y (longitudinal); Pitch = about X (lateral)
+  const roll  = Math.atan2(gV[0], -gV[2]) * 180 / Math.PI;
+  const pitch = Math.atan2(gV[1], -gV[2]) * 180 / Math.PI;
+  S.rollDeg = roll; S.pitchDeg = pitch;
+  if (Math.abs(roll) > S.rollMaxAbs) S.rollMaxAbs = Math.abs(roll);
+
+  // Lateral g
+  S.latG = ax_v / G;
+  if (Math.abs(S.latG) > S.latGMaxAbs) S.latGMaxAbs = Math.abs(S.latG);
+
+  // Vertical accel → high-pass → 1-second RMS
+  const azHp = HP.filter(az_v);
+  const t = now / 1000;
+  S.wkRmsBuffer.push({ t, a: azHp });
+  // Drop samples older than 1s
+  while (S.wkRmsBuffer.length && t - S.wkRmsBuffer[0].t > 1.0) S.wkRmsBuffer.shift();
+  // RMS
+  if (S.wkRmsBuffer.length > 4) {
+    let sumSq = 0;
+    for (const s of S.wkRmsBuffer) sumSq += s.a * s.a;
+    S.wkRms = Math.sqrt(sumSq / S.wkRmsBuffer.length);
+  }
+
+  // VDV (4th-power integral, m/s^1.75 when ^0.25 taken at the end)
+  if (S.recording && S.lastVdvT) {
+    const dt = t - S.lastVdvT;
+    if (dt > 0 && dt < 0.5) { // guard against pauses
+      S.vdvSumPow4 += Math.pow(azHp, 4) * dt;
+      S.vdvDuration += dt;
+    }
+  }
+  S.lastVdvT = t;
+
+  // Record sample
+  if (S.recording && S.trip) {
+    S.trip.samples.push({
+      t: Date.now(),
+      ax_v, ay_v, az_v,
+      rrx: rr ? rr.alpha : null, rry: rr ? rr.beta : null, rrz: rr ? rr.gamma : null,
+      roll: S.rollDeg, pitch: S.pitchDeg
+    });
+    // Cap memory at ~2 hours @ 60Hz = 432k samples; warn at 200k
+    if (S.trip.samples.length === 200000) {
+      showAlert('warn', 'Trip is long — consider stopping and exporting to free memory.');
+    }
+  }
+}
+
+function onOrient(ev) {
+  // We don't use compass heading in v1 (unreliable in vehicle).
+  // Kept for future use.
+}
+
+// ============================================================================
+// Calibration
+// ============================================================================
+function startCalibration() {
+  S.calibration = null;
+  S.calibBuffer = [];
+  S._g = null;
+  HP.reset();
+  S.wkRmsBuffer = [];
+  S.calibStartedAt = performance.now();
+  clearAlerts();
+  showAlert('info', 'Calibrating — keep vehicle still… (0/60 samples)');
+
+  if (S.calibTimer) { clearInterval(S.calibTimer); }
+  S.calibTimer = setInterval(() => {
+    const elapsed = (performance.now() - S.calibStartedAt) / 1000;
+    if (S.calibration) {
+      clearInterval(S.calibTimer); S.calibTimer = null; return;
+    }
+    if (!S.calibBuffer) { clearInterval(S.calibTimer); S.calibTimer = null; return; }
+    const n = S.calibBuffer.length;
+    // Update progress alert
+    const alertEl = document.querySelector('#liveAlerts .alert');
+    if (alertEl) {
+      alertEl.textContent = `Calibrating — keep vehicle still… (${n}/60 samples, ${elapsed.toFixed(0)}s)`;
+    }
+    // Timeout after 6s
+    if (elapsed > 6) {
+      clearInterval(S.calibTimer); S.calibTimer = null;
+      S.calibBuffer = null;
+      clearAlerts();
+      if (n === 0) {
+        showAlert('warn', 'No motion sensor data received. This page must run on a phone with motion sensors enabled. Trip not started.');
+        // Abort the trip we just opened
+        abortTripDueToCalibFail();
+      } else {
+        showAlert('warn', `Calibration failed — only ${n}/60 samples in 6s (sample rate too low). Trip not started.`);
+        abortTripDueToCalibFail();
+      }
+    }
+  }, 250);
+}
+
+function abortTripDueToCalibFail() {
+  if (S.trip) {
+    S.trip = null;
+    S.recording = false;
+    document.getElementById('liveDot').classList.remove('live');
+    document.getElementById('btnStart').classList.remove('hidden');
+    document.getElementById('footer-trip').classList.add('hidden');
+  }
+}
+
+function finishCalibration() {
+  // Average gravity vector in phone frame
+  const n = S.calibBuffer.length;
+  let gx = 0, gy = 0, gz = 0;
+  for (const g of S.calibBuffer) { gx += g[0]; gy += g[1]; gz += g[2]; }
+  gx /= n; gy /= n; gz /= n;
+  const gMag = Math.hypot(gx, gy, gz);
+  // Vehicle Z (down) in phone frame:
+  const zP = [gx/gMag, gy/gMag, gz/gMag]; // phone-frame unit vector pointing DOWN (gravity)
+  // Pick longitudinal hint: phone screen up is typically pointing forward when on dash.
+  // We default longitudinal in phone-frame to phone's +Y (top of screen). User can override later.
+  // To make it orthogonal to zP, do Gram-Schmidt.
+  let yHint = [0, 1, 0];
+  // Make y perpendicular to z
+  const dot = yHint[0]*zP[0] + yHint[1]*zP[1] + yHint[2]*zP[2];
+  let yV = [yHint[0] - dot*zP[0], yHint[1] - dot*zP[1], yHint[2] - dot*zP[2]];
+  const yMag = Math.hypot(...yV);
+  if (yMag < 0.1) { yV = [1,0,0]; } // fallback
+  else yV = yV.map(v => v / yMag);
+  // x = y cross -z  (lateral, right)
+  const zUp = zP.map(v => -v); // up
+  const xV = cross(yV, zUp);
+  // Build rotation matrix (rows = vehicle axes expressed in phone frame)
+  // So R * v_phone = v_vehicle, where v_vehicle = (x, y, z) = (lateral, longitudinal, vertical-up)
+  // But we want vertical to be UP positive, so use zUp.
+  S.calibration = {
+    R: [
+      [xV[0], xV[1], xV[2]],
+      [yV[0], yV[1], yV[2]],
+      [zUp[0], zUp[1], zUp[2]],
+    ],
+    gMag: gMag
+  };
+  S.calibBuffer = null;
+  if (S.calibTimer) { clearInterval(S.calibTimer); S.calibTimer = null; }
+  clearAlerts();
+  showAlert('info', `Calibrated · |g|=${gMag.toFixed(2)} m/s² · Recording.`);
+  setTimeout(clearAlerts, 3000);
+}
+
+function mat3MulVec(R, v) {
+  return [
+    R[0][0]*v[0] + R[0][1]*v[1] + R[0][2]*v[2],
+    R[1][0]*v[0] + R[1][1]*v[1] + R[1][2]*v[2],
+    R[2][0]*v[0] + R[2][1]*v[1] + R[2][2]*v[2],
+  ];
+}
+function cross(a, b) {
+  return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+}
+
+// ============================================================================
+// Trip lifecycle
+// ============================================================================
+function startTrip() {
+  if (!S.calibration) { startCalibration(); }
+  S.trip = {
+    id: Date.now(),
+    startedAt: Date.now(),
+    endedAt: null,
+    click: { ...S.click },
+    samples: [],
+    gps: [],
+    clickChanges: [{ t: Date.now(), front: S.click.front, rear: S.click.rear, note: 'start' }],
+  };
+  // Reset live aggregates
+  S.vdvSumPow4 = 0;
+  S.vdvDuration = 0;
+  S.rollMaxAbs = 0;
+  S.latGMaxAbs = 0;
+  S.lastVdvT = null;
+  S.recording = true;
+  document.getElementById('liveDot').classList.add('live');
+  document.getElementById('btnStart').classList.add('hidden');
+  document.getElementById('footer-trip').classList.remove('hidden');
+}
+
+function stopTrip() {
+  if (!S.trip) return;
+  if (S.trip.samples.length < 30) {
+    if (!confirm(`Only ${S.trip.samples.length} samples recorded — trip likely has no useful data. Save anyway?`)) {
+      abortTripDueToCalibFail();
+      clearAlerts();
+      showAlert('warn', 'Trip discarded.');
+      setTimeout(clearAlerts, 2500);
+      return;
+    }
+  }
+  S.trip.endedAt = Date.now();
+  S.trip.summary = {
+    durationS: (S.trip.endedAt - S.trip.startedAt) / 1000,
+    vdv: Math.pow(S.vdvSumPow4, 0.25),
+    avgWkRms: meanWkRmsFromSamples(S.trip.samples),
+    rollMaxDeg: S.rollMaxAbs,
+    latGMax: S.latGMaxAbs,
+    distanceKm: distanceFromGps(S.trip.gps),
+    samples: S.trip.samples.length,
+    gpsPoints: S.trip.gps.length,
+  };
+  S.trips.unshift(S.trip);
+  saveTrips();
+  S.trip = null;
+  S.recording = false;
+  document.getElementById('liveDot').classList.remove('live');
+  document.getElementById('btnStart').classList.remove('hidden');
+  document.getElementById('footer-trip').classList.add('hidden');
+  renderTrips();
+}
+
+function meanWkRmsFromSamples(samples) {
+  if (!samples.length) return 0;
+  // Bucket into 1-second windows and average the per-window RMS
+  let cur = [], curStart = samples[0].t, rmsList = [];
+  for (const s of samples) {
+    if (s.t - curStart > 1000) {
+      if (cur.length > 5) {
+        let sq = 0; for (const v of cur) sq += v*v;
+        rmsList.push(Math.sqrt(sq / cur.length));
+      }
+      cur = []; curStart = s.t;
+    }
+    cur.push(s.az_v);
+  }
+  if (!rmsList.length) return 0;
+  return rmsList.reduce((a,b)=>a+b,0) / rmsList.length;
+}
+
+function distanceFromGps(gps) {
+  if (gps.length < 2) return 0;
+  let km = 0;
+  for (let i = 1; i < gps.length; i++) {
+    km += haversine(gps[i-1], gps[i]);
+  }
+  return km;
+}
+function haversine(a, b) {
+  const R = 6371;
+  const dLat = (b.lat - a.lat) * Math.PI / 180;
+  const dLon = (b.lon - a.lon) * Math.PI / 180;
+  const la1 = a.lat * Math.PI / 180, la2 = b.lat * Math.PI / 180;
+  const h = Math.sin(dLat/2)**2 + Math.cos(la1)*Math.cos(la2)*Math.sin(dLon/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function logClickChange() {
+  if (!S.trip) return;
+  S.trip.clickChanges.push({
+    t: Date.now(),
+    front: S.click.front, rear: S.click.rear,
+    note: ''
+  });
+  showAlert('info', `Click change logged: F${S.click.front} / R${S.click.rear}`);
+  setTimeout(clearAlerts, 2500);
+}
+
+// ============================================================================
+// UI rendering
+// ============================================================================
+function showView(name) {
+  for (const v of document.querySelectorAll('.view')) v.classList.add('hidden');
+  document.getElementById(`view-${name}`).classList.remove('hidden');
+  for (const t of document.querySelectorAll('.tab')) t.classList.toggle('active', t.dataset.view === name);
+  if (name === 'trips') renderTrips();
+  if (name === 'settings') renderDiag();
+}
+
+function renderClickPickers() {
+  for (const which of ['front', 'rear']) {
+    const c = document.getElementById('click' + which.charAt(0).toUpperCase() + which.slice(1));
+    c.innerHTML = '';
+    for (let i = CLICK_MIN; i <= CLICK_MAX; i++) {
+      const b = document.createElement('button');
+      b.textContent = i;
+      if (i === S.click[which]) b.classList.add('sel');
+      b.onclick = () => {
+        S.click[which] = i;
+        saveClick();
+        renderClickPickers();
+      };
+      c.appendChild(b);
+    }
+  }
+}
+
+function comfortLabel(rms) {
+  if (rms < 0.315) return ['Comfortable', 5];
+  if (rms < 0.5)   return ['A little uncomfortable', 20];
+  if (rms < 0.8)   return ['Fairly uncomfortable', 40];
+  if (rms < 1.25)  return ['Uncomfortable', 60];
+  if (rms < 2.0)   return ['Very uncomfortable', 80];
+  return ['Extremely uncomfortable', 95];
+}
+
+function renderLive() {
+  const rms = S.wkRms;
+  const vdv = Math.pow(S.vdvSumPow4, 0.25);
+  document.getElementById('wkRms').textContent = rms.toFixed(2);
+  document.getElementById('vdv').textContent = vdv.toFixed(2);
+  const [label, pos] = comfortLabel(rms);
+  document.getElementById('wkRmsLabel').textContent = label;
+  document.getElementById('comfortText').textContent = label;
+  document.querySelector('.comfort-bar').style.setProperty('--comfort-pos', pos + '%');
+  document.getElementById('rollPitch').textContent =
+    `${S.rollDeg.toFixed(0)}° / ${S.pitchDeg.toFixed(0)}°`;
+  document.getElementById('rollMax').textContent = `Peak ${S.rollMaxAbs.toFixed(0)}°`;
+  document.getElementById('latG').textContent = S.latG.toFixed(2);
+  document.getElementById('latGMax').textContent = `Peak ${S.latGMaxAbs.toFixed(2)}`;
+  document.getElementById('vdvLabel').textContent =
+    vdv > 8.5 ? `OVER daily limit (${vdv.toFixed(1)})` : `Daily limit 8.5`;
+}
+
+function renderTrips() {
+  const list = document.getElementById('tripList');
+  list.innerHTML = '';
+  if (!S.trips.length) {
+    list.innerHTML = '<div class="empty">No trips yet. Tap Start trip on the Live tab.</div>';
+    return;
+  }
+  for (const t of S.trips) {
+    const s = t.summary || {};
+    const d = new Date(t.startedAt);
+    const dur = s.durationS ? `${(s.durationS/60).toFixed(1)} min` : '—';
+    const div = document.createElement('div');
+    div.className = 'trip-item';
+    div.innerHTML = `
+      <div class="head">
+        <div class="name">${d.toLocaleString()}</div>
+        <div class="meta">F${t.click.front}/R${t.click.rear}</div>
+      </div>
+      <div class="stats">
+        <span>${dur}</span>
+        <span>${(s.distanceKm||0).toFixed(1)} km</span>
+        <span>Wk ${(s.avgWkRms||0).toFixed(2)}</span>
+        <span>VDV ${(s.vdv||0).toFixed(2)}</span>
+        <span>Roll ${(s.rollMaxDeg||0).toFixed(0)}°</span>
+        <span>Lat ${(s.latGMax||0).toFixed(2)}g</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="ghost" onclick="exportTrip(${t.id})">Export JSON</button>
+        <button class="ghost" onclick="exportTripCsv(${t.id})">Export CSV</button>
+        <button class="ghost danger" onclick="deleteTrip(${t.id})">Delete</button>
+      </div>
+    `;
+    list.appendChild(div);
+  }
+}
+
+function renderDiag() {
+  document.getElementById('diag').textContent = JSON.stringify({
+    secureContext: window.isSecureContext,
+    motion: S.perms.motion,
+    location: S.perms.location,
+    sampleRate: S.sampleRateEMA.toFixed(1) + ' Hz',
+    sampleCount: S.sampleCount,
+    calibrated: !!S.calibration,
+    gravityMag: S.calibration ? S.calibration.gMag.toFixed(3) : null,
+    storedTrips: S.trips.length,
+    userAgent: navigator.userAgent,
+  }, null, 2);
+}
+
+function showAlert(kind, msg) {
+  const a = document.createElement('div');
+  a.className = 'alert ' + kind;
+  a.textContent = msg;
+  document.getElementById('liveAlerts').appendChild(a);
+}
+function clearAlerts() {
+  document.getElementById('liveAlerts').innerHTML = '';
+}
+
+// ============================================================================
+// Export
+// ============================================================================
+function exportTrip(id) {
+  const t = S.trips.find(x => x.id === id); if (!t) return;
+  download(`prado-trip-${id}.json`, JSON.stringify(t, null, 2), 'application/json');
+}
+function exportTripCsv(id) {
+  const t = S.trips.find(x => x.id === id); if (!t) return;
+  const head = 't,ax_v,ay_v,az_v,roll,pitch\n';
+  const rows = t.samples.map(s =>
+    `${s.t},${s.ax_v.toFixed(4)},${s.ay_v.toFixed(4)},${s.az_v.toFixed(4)},${s.roll.toFixed(2)},${s.pitch.toFixed(2)}`
+  ).join('\n');
+  download(`prado-trip-${id}.csv`, head + rows, 'text/csv');
+}
+function deleteTrip(id) {
+  if (!confirm('Delete this trip?')) return;
+  S.trips = S.trips.filter(x => x.id !== id);
+  saveTrips(); renderTrips();
+}
+function download(name, data, mime) {
+  const blob = new Blob([data], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+}
+
+// ============================================================================
+// Wiring
+// ============================================================================
+document.getElementById('btnGrant').onclick = requestPermissions;
+document.getElementById('btnStart').onclick = startTrip;
+document.getElementById('btnStop').onclick = stopTrip;
+document.getElementById('btnLogClick').onclick = logClickChange;
+document.getElementById('btnCalibrate').onclick = startCalibration;
+document.getElementById('btnWipe').onclick = () => {
+  if (confirm('Delete ALL trips and reset?')) {
+    localStorage.clear();
+    S.trips = []; renderTrips(); renderDiag();
+  }
+};
+for (const t of document.querySelectorAll('.tab')) {
+  t.onclick = () => {
+    // Don't allow leaving perm screen until granted
+    if (!S.perms.motion || !S.perms.location) {
+      if (t.dataset.view !== 'settings') return;
+    }
+    showView(t.dataset.view);
+  };
+}
+
+// Init
+loadClick();
+renderClickPickers();
+showView('perm');
+document.getElementById('permHttps').textContent = window.isSecureContext ? 'OK' : 'INSECURE';
+document.getElementById('permHttps').className = window.isSecureContext ? 'ok' : 'bad';
+
+// Live UI refresh loop @ 5 Hz
+setInterval(renderLive, 200);
+
+// Re-acquire wake lock on visibility change
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && 'wakeLock' in navigator) {
+    navigator.wakeLock.request('screen').then(w => wakeLock = w).catch(() => {});
+  }
+});
+</script>
+</body>
+</html>
