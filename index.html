@@ -556,6 +556,25 @@
       <div id="speedSafetyChart" style="margin-top:10px;"></div>
       <div id="speedSafetyChartReadout" style="margin-top:6px; color:#888; font-size:11px; text-align:center;">—</div>
     </details>
+    <details open>
+      <summary>Speed vs comfort (Wk-RMS by speed bin)</summary>
+      <div style="margin-top:8px; color:#aaa; font-size:12px;">
+        A U-curve — vibration rising at high speed instead of staying flat — is a wheel-balance signature: rotation frequency excites the ~10 Hz wheel-hop mode.
+      </div>
+      <div style="margin-top:8px; display:flex; gap:6px;">
+        <div style="display:flex; gap:4px; flex:1;" id="sbScope">
+          <button class="ghost mini" data-scope="last" style="flex:1;">Last trip</button>
+          <button class="ghost mini" data-scope="all" style="flex:1;">All trips</button>
+        </div>
+        <div style="display:flex; gap:4px; flex:1;" id="sbRoad">
+          <button class="ghost mini" data-road="all" style="flex:1;">All</button>
+          <button class="ghost mini" data-road="sealed" style="flex:1;">Sealed</button>
+          <button class="ghost mini" data-road="highway" style="flex:1;">Hwy</button>
+        </div>
+      </div>
+      <div id="speedBinChart" style="margin-top:10px;"></div>
+      <div id="speedBinReadout" style="margin-top:6px; color:#888; font-size:11px; text-align:center;">—</div>
+    </details>
     <details>
       <summary>Pressure ladder (Ronny Dahl's rule of thumb)</summary>
       <div style="margin-top:8px; color:#aaa; font-size:12px;">
@@ -643,6 +662,9 @@ const S = {
     segment: null,    // current segment being accumulated during a trip
     lastTick: 0,      // throttle tick to 1Hz
   },
+
+  // Speed-vs-comfort chart filter (Settings)
+  speedBinFilter: { scope: 'all', road: 'all' },
 };
 const SAMPLE_HZ_NOMINAL = 60;
 const G = 9.80665;
@@ -667,6 +689,75 @@ function decimateSamples(samples, stride) {
   for (let i = 0; i < samples.length; i += stride) out.push(samples[i]);
   if (out[out.length - 1] !== samples[samples.length - 1]) out.push(samples[samples.length - 1]);
   return out;
+}
+
+// Pre-compute 1-second windowed Wk-RMS + nearest-GPS speed + dominant road class
+// for each window. Stored on summary so speed-binned analysis works after the
+// raw samples have been decimated for storage.
+function computeWindowedStats(samples, gps) {
+  if (!samples || samples.length < 30) return [];
+  // Estimate effective sample rate from median dt (robust to gaps)
+  const dts = [];
+  for (let i = 1; i < samples.length; i++) dts.push(samples[i].t - samples[i-1].t);
+  dts.sort((a,b) => a-b);
+  const medDtMs = dts[dts.length >> 1] || (1000/60);
+  const fs = Math.max(2, 1000 / medDtMs);
+  const wk = makeWkFilter(fs);
+
+  // Presort GPS for nearest-point binary search
+  const gpsSorted = (gps || []).slice().sort((a,b) => a.t - b.t);
+  const gpsTs = gpsSorted.map(g => g.t);
+  function nearestGps(t) {
+    if (!gpsTs.length) return null;
+    let lo = 0, hi = gpsTs.length - 1;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (gpsTs[m] <= t) lo = m; else hi = m - 1; }
+    const a = gpsSorted[lo], b = gpsSorted[lo + 1] || a;
+    return Math.abs(b.t - t) < Math.abs(a.t - t) ? b : a;
+  }
+
+  const WINDOW_MS = 1000;
+  const GAP_MS = Math.max(200, medDtMs * 5); // 5× nominal dt → reset filter
+  const windows = [];
+  let winStart = samples[0].t;
+  let sumSq = 0, n = 0;
+  const roadCounts = {};
+  let prevT = samples[0].t;
+  function topRoad() {
+    let best = null, bestN = -1;
+    for (const k in roadCounts) if (roadCounts[k] > bestN) { best = k; bestN = roadCounts[k]; }
+    return best;
+  }
+  function flush() {
+    if (n < Math.max(5, fs/3)) return;
+    const g = nearestGps(winStart + WINDOW_MS/2);
+    const speedKmh = (g && g.speed != null && g.speed >= 0) ? g.speed * 3.6 : null;
+    windows.push({
+      t: winStart,
+      wkRms: Math.sqrt(sumSq / n),
+      speedKmh,
+      road: topRoad(),
+      n,
+    });
+  }
+  for (const s of samples) {
+    if (s.t - prevT > GAP_MS) {
+      flush();
+      wk.reset();
+      winStart = s.t; sumSq = 0; n = 0;
+      for (const k in roadCounts) delete roadCounts[k];
+    } else if (s.t - winStart >= WINDOW_MS) {
+      flush();
+      winStart = s.t; sumSq = 0; n = 0;
+      for (const k in roadCounts) delete roadCounts[k];
+    }
+    const az = wk.filter(s.az_v);
+    sumSq += az * az; n++;
+    const g = nearestGps(s.t);
+    if (g && g.road) roadCounts[g.road] = (roadCounts[g.road] || 0) + 1;
+    prevT = s.t;
+  }
+  flush();
+  return windows;
 }
 function saveTrips() {
   try {
@@ -1463,32 +1554,31 @@ function onGps(pos) {
 // ISO-conforming but a vast improvement on a plain HP — gives ~Wk-shaped
 // response that under-weights high-frequency tyre roar relative to the body
 // comfort band.
-const WK = (() => {
-  // RBJ biquad cookbook helpers — designed at fs=60 Hz (browser nominal).
-  function hp(fc, fs, Q) {
+function makeWkFilter(fs) {
+  // RBJ biquad cookbook helpers, parameterised by sample rate.
+  function hp(fc, Q) {
     const w = 2*Math.PI*fc/fs, c = Math.cos(w), s = Math.sin(w), a = s/(2*Q);
     const b0 = (1+c)/2, b1 = -(1+c), b2 = (1+c)/2;
     const a0 = 1+a, a1 = -2*c, a2 = 1-a;
     return { b0:b0/a0, b1:b1/a0, b2:b2/a0, a1:a1/a0, a2:a2/a0 };
   }
-  function lp(fc, fs, Q) {
+  function lp(fc, Q) {
     const w = 2*Math.PI*fc/fs, c = Math.cos(w), s = Math.sin(w), a = s/(2*Q);
     const b0 = (1-c)/2, b1 = 1-c, b2 = (1-c)/2;
     const a0 = 1+a, a1 = -2*c, a2 = 1-a;
     return { b0:b0/a0, b1:b1/a0, b2:b2/a0, a1:a1/a0, a2:a2/a0 };
   }
-  function peak(fc, fs, Q, gainDb) {
+  function peak(fc, Q, gainDb) {
     const A = Math.pow(10, gainDb/40);
     const w = 2*Math.PI*fc/fs, c = Math.cos(w), s = Math.sin(w), alpha = s/(2*Q);
     const b0 = 1 + alpha*A, b1 = -2*c, b2 = 1 - alpha*A;
     const a0 = 1 + alpha/A, a1 = -2*c, a2 = 1 - alpha/A;
     return { b0:b0/a0, b1:b1/a0, b2:b2/a0, a1:a1/a0, a2:a2/a0 };
   }
-  const FS = 60;
   const sec = [
-    { coeff: hp(0.4, FS, 0.707), s: {x1:0,x2:0,y1:0,y2:0} },     // remove DC + slow drift
-    { coeff: peak(5.0, FS, 1.2, 3.5), s: {x1:0,x2:0,y1:0,y2:0} },// emphasize body band (4-8 Hz)
-    { coeff: lp(16.0, FS, 0.707), s: {x1:0,x2:0,y1:0,y2:0} },    // suppress tyre roar / harshness
+    { coeff: hp(0.4, 0.707), s: {x1:0,x2:0,y1:0,y2:0} },     // remove DC + slow drift
+    { coeff: peak(5.0, 1.2, 3.5), s: {x1:0,x2:0,y1:0,y2:0} },// emphasize body band (4-8 Hz)
+    { coeff: lp(16.0, 0.707), s: {x1:0,x2:0,y1:0,y2:0} },    // suppress tyre roar / harshness
   ];
   function step(x, c, st) {
     const y = c.b0*x + c.b1*st.x1 + c.b2*st.x2 - c.a1*st.y1 - c.a2*st.y2;
@@ -1499,7 +1589,9 @@ const WK = (() => {
     reset() { sec.forEach(s => { s.s.x1=s.s.x2=s.s.y1=s.s.y2=0; }); },
     filter(x) { let y = x; for (const s of sec) y = step(y, s.coeff, s.s); return y; },
   };
-})();
+}
+// Live filter — fs=60 matches the browser-nominal motion event rate
+const WK = makeWkFilter(60);
 // Backward-compatible alias
 const HP = WK;
 
@@ -1796,6 +1888,9 @@ function stopTrip() {
     samples: S.trip.samples.length,
     gpsPoints: S.trip.gps.length,
   };
+  // Pre-compute 1-second Wk-filtered windows on the FULL-RATE samples so the
+  // speed-vs-comfort chart survives storage decimation.
+  S.trip.summary.windows = computeWindowedStats(S.trip.samples, S.trip.gps);
   // Decimate to ~10 Hz for storage if longer than ~10 min @ 60 Hz.
   // Summary metrics are already computed above against the full sample set.
   const STORAGE_HZ = 10;
@@ -2261,11 +2356,147 @@ function updateLiveDot() {
   }
 }
 
+// ============================================================================
+// Speed vs comfort chart — surfaces wheel-balance signature in-app
+// ============================================================================
+const SPEED_BINS = [
+  { lo: 0,   hi: 20,  label: '<20' },
+  { lo: 20,  hi: 40,  label: '20–40' },
+  { lo: 40,  hi: 60,  label: '40–60' },
+  { lo: 60,  hi: 80,  label: '60–80' },
+  { lo: 80,  hi: 100, label: '80–100' },
+  { lo: 100, hi: 120, label: '100–120' },
+  { lo: 120, hi: 999, label: '120+' },
+];
+function rmsColor(rms) {
+  if (rms < 0.315) return '#34c759';
+  if (rms < 0.5)   return '#9bd84a';
+  if (rms < 0.8)   return '#ffcc00';
+  if (rms < 1.25)  return '#ff9500';
+  if (rms < 2.0)   return '#ff5722';
+  return '#ff3b30';
+}
+function windowsForTrip(trip) {
+  if (!trip) return [];
+  if (trip.summary && trip.summary.windows && trip.summary.windows.length) return trip.summary.windows;
+  // Backwards-compat: compute on the fly (cached on the trip object).
+  // For trips with summary.storedSampleHz set, samples were decimated to ~10 Hz;
+  // computeWindowedStats adapts the filter rate from observed dt.
+  if (!trip._windowsCached) {
+    trip._windowsCached = computeWindowedStats(trip.samples || [], trip.gps || []);
+  }
+  return trip._windowsCached;
+}
+function aggregateSpeedBins(windows, roadFilter) {
+  const bins = SPEED_BINS.map(b => ({ ...b, vals: [] }));
+  for (const w of windows) {
+    if (w.speedKmh == null) continue;
+    if (roadFilter === 'highway' && w.road !== 'highway_sealed') continue;
+    if (roadFilter === 'sealed' && w.road !== 'highway_sealed' && w.road !== 'road_sealed') continue;
+    const b = bins.find(b => w.speedKmh >= b.lo && w.speedKmh < b.hi);
+    if (b) b.vals.push(w.wkRms);
+  }
+  for (const b of bins) {
+    b.vals.sort((a, c) => a - c);
+    b.n = b.vals.length;
+    b.median = b.n ? b.vals[b.n >> 1] : null;
+    b.p90 = b.n ? b.vals[Math.floor(0.9 * b.n)] : null;
+  }
+  return bins;
+}
+function renderSpeedBinnedChart() {
+  const chart = document.getElementById('speedBinChart');
+  const readout = document.getElementById('speedBinReadout');
+  if (!chart) return;
+  // Refresh button selection state
+  document.querySelectorAll('#sbScope button').forEach(b => b.classList.toggle('sel', b.dataset.scope === S.speedBinFilter.scope));
+  document.querySelectorAll('#sbRoad button').forEach(b => b.classList.toggle('sel', b.dataset.road === S.speedBinFilter.road));
+
+  // Collect windows from selected trips
+  const trips = S.speedBinFilter.scope === 'last' ? S.trips.slice(0, 1) : S.trips;
+  let windows = [];
+  for (const t of trips) windows = windows.concat(windowsForTrip(t));
+  const bins = aggregateSpeedBins(windows, S.speedBinFilter.road);
+  const totalN = bins.reduce((s, b) => s + b.n, 0);
+
+  if (totalN === 0) {
+    chart.innerHTML = '<div style="color:#666; text-align:center; padding:20px 0; font-size:12px;">No data yet — drive a trip with this scope + filter.</div>';
+    if (readout) readout.textContent = trips.length ? 'No windows match the current filter.' : 'Drive a trip to populate the chart.';
+    return;
+  }
+
+  // Find minimum-median bin for sweet-spot mark
+  let minBin = null;
+  for (const b of bins) if (b.median != null && (minBin == null || b.median < minBin.median)) minBin = b;
+
+  // SVG layout — horizontal bars
+  const W = 360, ROW_H = 26, PAD_TOP = 8, PAD_BOTTOM = 6;
+  const LABEL_W = 64, VAL_W = 64;
+  const BAR_X = LABEL_W, BAR_W = W - LABEL_W - VAL_W;
+  const SCALE_MAX = 2.0; // Wk-RMS m/s² mapped to full bar width
+  const H = PAD_TOP + bins.length * ROW_H + PAD_BOTTOM;
+
+  let rows = '';
+  for (let i = 0; i < bins.length; i++) {
+    const b = bins[i];
+    const y = PAD_TOP + i * ROW_H;
+    const labelY = y + ROW_H / 2 + 3;
+    const sweet = (b === minBin) ? ' ★' : '';
+    const labelClass = b === minBin ? '#34c759' : '#ddd';
+    let bar = '';
+    if (b.n) {
+      const w = Math.min(1, b.median / SCALE_MAX) * BAR_W;
+      const color = rmsColor(b.median);
+      bar = `<rect x="${BAR_X}" y="${y + 4}" width="${w}" height="${ROW_H - 10}" rx="3" fill="${color}"/>`;
+      // p90 tick
+      const p90x = BAR_X + Math.min(1, b.p90 / SCALE_MAX) * BAR_W;
+      bar += `<line x1="${p90x}" y1="${y + 2}" x2="${p90x}" y2="${y + ROW_H - 4}" stroke="#fff" stroke-opacity="0.6" stroke-width="1.2"/>`;
+      bar += `<text x="${W - 4}" y="${labelY}" font-size="11" font-weight="700" fill="#fff" text-anchor="end" font-family="-apple-system,sans-serif">${b.median.toFixed(2)} <tspan font-size="9" fill="#888" font-weight="400">n=${b.n}</tspan></text>`;
+    } else {
+      bar = `<rect x="${BAR_X}" y="${y + 4}" width="${BAR_W}" height="${ROW_H - 10}" rx="3" fill="#1c1c1e" stroke="#2a2a2e"/>`;
+      bar += `<text x="${W - 4}" y="${labelY}" font-size="10" fill="#555" text-anchor="end">no data</text>`;
+    }
+    rows += `<g>
+      <text x="${LABEL_W - 6}" y="${labelY}" font-size="11" font-weight="600" fill="${labelClass}" text-anchor="end" font-family="-apple-system,sans-serif">${b.label}${sweet}</text>
+      ${bar}
+    </g>`;
+  }
+  // Scale ticks at 0.5, 1.0, 1.5, 2.0
+  let ticks = '';
+  for (const t of [0.5, 1.0, 1.5, 2.0]) {
+    const x = BAR_X + (t / SCALE_MAX) * BAR_W;
+    ticks += `<line x1="${x}" y1="${PAD_TOP}" x2="${x}" y2="${H - PAD_BOTTOM}" stroke="#2a2a2e" stroke-dasharray="2,3"/>`;
+    ticks += `<text x="${x}" y="${H - 1}" font-size="8" fill="#666" text-anchor="middle">${t.toFixed(1)}</text>`;
+  }
+
+  chart.innerHTML = `<svg viewBox="0 0 ${W} ${H + 8}" width="100%" style="display:block; max-width:520px; margin:0 auto;" preserveAspectRatio="xMidYMid meet">
+    ${ticks}
+    ${rows}
+  </svg>`;
+
+  // Readout: detect U-curve (highway speed > sweet spot by ≥0.2 m/s²)
+  const highBins = bins.filter(b => b.lo >= 80 && b.median != null);
+  const highMedian = highBins.length ? highBins.reduce((s, b) => s + b.median * b.n, 0) / highBins.reduce((s, b) => s + b.n, 0) : null;
+  let msg;
+  if (highMedian != null && minBin && minBin.lo < 80 && (highMedian - minBin.median) > 0.2) {
+    msg = `⚠ U-curve detected · highway median ${highMedian.toFixed(2)} vs sweet spot ${minBin.median.toFixed(2)} at ${minBin.label}. Possible wheel imbalance.`;
+    if (readout) readout.style.color = '#ff9500';
+  } else if (totalN < 60) {
+    msg = `Limited data · ${totalN} 1s window${totalN === 1 ? '' : 's'} across ${trips.length} trip${trips.length === 1 ? '' : 's'}. Drive more for confidence.`;
+    if (readout) readout.style.color = '#888';
+  } else {
+    msg = `${totalN.toLocaleString()} 1s windows across ${trips.length} trip${trips.length === 1 ? '' : 's'} · white tick = p90 · ★ = sweet spot.`;
+    if (readout) readout.style.color = '#888';
+  }
+  if (readout) readout.textContent = msg;
+}
+
 function renderDiag() {
   renderLearningStats();
   renderPressureLadder();
   buildSpeedSafetyChart();
   updateLiveDot();
+  renderSpeedBinnedChart();
   document.getElementById('diag').textContent = JSON.stringify({
     secureContext: window.isSecureContext,
     motion: S.perms.motion,
@@ -2439,6 +2670,13 @@ document.querySelectorAll('#loadStatePicker button').forEach(b => {
   };
 });
 renderLoadStatePicker();
+// Wire speed-bin chart filter buttons
+document.querySelectorAll('#sbScope button').forEach(b => {
+  b.onclick = () => { S.speedBinFilter.scope = b.dataset.scope; renderSpeedBinnedChart(); };
+});
+document.querySelectorAll('#sbRoad button').forEach(b => {
+  b.onclick = () => { S.speedBinFilter.road = b.dataset.road; renderSpeedBinnedChart(); };
+});
 renderRoad();
 renderWeather();
 renderRecommendation();
