@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0a0a0a"/>
+  <circle cx="256" cy="256" r="180" fill="none" stroke="#ff9500" stroke-width="20"/>
+  <path d="M 140 320 L 200 220 L 260 270 L 320 200 L 380 290" fill="none" stroke="#ff9500" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="200" cy="220" r="14" fill="#ff9500"/>
+  <circle cx="380" cy="290" r="14" fill="#ff9500"/>
+  <text x="256" y="430" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="60" font-weight="800" fill="#f0f0f0">PRADO</text>
+</svg>

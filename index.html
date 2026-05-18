@@ -6,6 +6,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="theme-color" content="#0a0a0a">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
 <title>Prado Ride</title>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -656,8 +659,54 @@ function loadTrips() {
   try { return JSON.parse(localStorage.getItem('prado.trips') || '[]'); }
   catch { return []; }
 }
+// Decimate samples uniformly (preserves first + last) so the trip stays
+// representable for offline review while fitting into localStorage.
+function decimateSamples(samples, stride) {
+  if (stride <= 1 || samples.length <= 2) return samples;
+  const out = [];
+  for (let i = 0; i < samples.length; i += stride) out.push(samples[i]);
+  if (out[out.length - 1] !== samples[samples.length - 1]) out.push(samples[samples.length - 1]);
+  return out;
+}
 function saveTrips() {
-  localStorage.setItem('prado.trips', JSON.stringify(S.trips));
+  try {
+    localStorage.setItem('prado.trips', JSON.stringify(S.trips));
+    return;
+  } catch (e) {
+    if (e.name !== 'QuotaExceededError' && e.name !== 'NS_ERROR_DOM_QUOTA_REACHED') throw e;
+  }
+  // Quota hit. Progressively shed per-sample data from oldest trips first
+  // (summary + GPS are kept), then retry. As a last resort, drop oldest trips.
+  for (let pass = 0; pass < 3; pass++) {
+    for (let i = S.trips.length - 1; i >= 1; i--) {
+      if (S.trips[i].samples && S.trips[i].samples.length) {
+        S.trips[i].samples = [];
+        try { localStorage.setItem('prado.trips', JSON.stringify(S.trips));
+              showAlert('warn', 'Storage full — dropped raw samples from older trips. Summaries kept.', 6000);
+              return;
+        } catch {}
+      }
+    }
+    // Still full: also drop GPS from old trips
+    for (let i = S.trips.length - 1; i >= 1; i--) {
+      if (S.trips[i].gps && S.trips[i].gps.length) {
+        S.trips[i].gps = [];
+        try { localStorage.setItem('prado.trips', JSON.stringify(S.trips));
+              showAlert('warn', 'Storage full — dropped GPS tracks from older trips.', 6000);
+              return;
+        } catch {}
+      }
+    }
+    // Drop one oldest trip entirely
+    if (S.trips.length > 1) {
+      S.trips.pop();
+      try { localStorage.setItem('prado.trips', JSON.stringify(S.trips));
+            showAlert('warn', 'Storage full — discarded oldest trip.', 6000);
+            return;
+      } catch {}
+    } else break;
+  }
+  showAlert('warn', 'Storage full — could not save trip. Export and Delete all trips.', 8000);
 }
 function loadClick() {
   try {
@@ -1162,8 +1211,7 @@ function applyRecommendation() {
       note: 'applied recommendation',
     });
   }
-  showAlert('info', `Applied · F${S.click.front}/R${S.click.rear} · ${formatPressure(S.psi.front)}/${formatPressure(S.psi.rear)} ${pressureUnitLabel()}`);
-  setTimeout(clearAlerts, 2500);
+  showAlert('info', `Applied · F${S.click.front}/R${S.click.rear} · ${formatPressure(S.psi.front)}/${formatPressure(S.psi.rear)} ${pressureUnitLabel()}`, 2500);
 }
 
 // Persistence helpers
@@ -1474,8 +1522,7 @@ function onMotion(ev) {
       S.wkRmsBuffer = [];
       S.lastVdvT = null;
       clearAlerts();
-      showAlert('warn', `Recording resumed after ${(dt/60).toFixed(1)} min gap (phone slept).`);
-      setTimeout(clearAlerts, 5000);
+      showAlert('warn', `Recording resumed after ${(dt/60).toFixed(1)} min gap (phone slept).`, 5000);
     } else {
       const inst = 1 / dt;
       S.sampleRateEMA = S.sampleRateEMA ? 0.95 * S.sampleRateEMA + 0.05 * inst : inst;
@@ -1565,9 +1612,11 @@ function onMotion(ev) {
       rrx: rr ? rr.alpha : null, rry: rr ? rr.beta : null, rrz: rr ? rr.gamma : null,
       roll: S.rollDeg, pitch: S.pitchDeg
     });
-    // Cap memory at ~2 hours @ 60Hz = 432k samples; warn at 200k
+    // Soft cap at 200k samples (~55 min @ 60Hz): decimate in-place to 30Hz once,
+    // and warn once. Further growth will be decimated again at stopTrip().
     if (S.trip.samples.length === 200000) {
-      showAlert('warn', 'Trip is long — consider stopping and exporting to free memory.');
+      S.trip.samples = decimateSamples(S.trip.samples, 2);
+      showAlert('warn', 'Trip is long — sample rate halved to 30 Hz to save memory. Consider stopping soon.', 8000);
     }
   }
 }
@@ -1666,8 +1715,7 @@ function finishCalibration() {
   S.calibBuffer = null;
   if (S.calibTimer) { clearInterval(S.calibTimer); S.calibTimer = null; }
   clearAlerts();
-  showAlert('info', `Calibrated · |g|=${gMag.toFixed(2)} m/s² · Recording.`);
-  setTimeout(clearAlerts, 3000);
+  showAlert('info', `Calibrated · |g|=${gMag.toFixed(2)} m/s² · Recording.`, 3000);
 }
 
 function mat3MulVec(R, v) {
@@ -1723,8 +1771,7 @@ function stopTrip() {
     if (!confirm(`Only ${S.trip.samples.length} samples recorded — trip likely has no useful data. Save anyway?`)) {
       abortTripDueToCalibFail();
       clearAlerts();
-      showAlert('warn', 'Trip discarded.');
-      setTimeout(clearAlerts, 2500);
+      showAlert('warn', 'Trip discarded.', 2500);
       return;
     }
   }
@@ -1749,6 +1796,15 @@ function stopTrip() {
     samples: S.trip.samples.length,
     gpsPoints: S.trip.gps.length,
   };
+  // Decimate to ~10 Hz for storage if longer than ~10 min @ 60 Hz.
+  // Summary metrics are already computed above against the full sample set.
+  const STORAGE_HZ = 10;
+  const stride = Math.max(1, Math.round(SAMPLE_HZ_NOMINAL / STORAGE_HZ));
+  if (S.trip.samples.length > 36000) {
+    S.trip.samples = decimateSamples(S.trip.samples, stride);
+    S.trip.summary.storedSampleHz = STORAGE_HZ;
+    S.trip.summary.storedSamples = S.trip.samples.length;
+  }
   S.trips.unshift(S.trip);
   saveTrips();
   S.trip = null;
@@ -1808,8 +1864,7 @@ function logAdjustment() {
     psiF: S.psi.front, psiR: S.psi.rear,
     note: ''
   });
-  showAlert('info', `Logged · F${S.click.front}/R${S.click.rear} · ${formatPressure(S.psi.front)}/${formatPressure(S.psi.rear)} ${pressureUnitLabel()}`);
-  setTimeout(clearAlerts, 2500);
+  showAlert('info', `Logged · F${S.click.front}/R${S.click.rear} · ${formatPressure(S.psi.front)}/${formatPressure(S.psi.rear)} ${pressureUnitLabel()}`, 2500);
 }
 
 function adjustPsi(which, delta) {
@@ -1936,6 +1991,9 @@ function renderLive() {
   renderSpeedWarning();
   renderRolloverWarning();
   updateLiveDot();
+  // Recompute rec so speed-override (highway >110) and Wk-RMS overshoot logic
+  // actually fire — without this, those branches only run when road/weather refetch.
+  updateRecommendation();
 }
 
 function renderTrips() {
@@ -2228,11 +2286,15 @@ function renderDiag() {
   }, null, 2);
 }
 
-function showAlert(kind, msg) {
+function showAlert(kind, msg, autoDismissMs) {
   const a = document.createElement('div');
   a.className = 'alert ' + kind;
   a.textContent = msg;
   document.getElementById('liveAlerts').appendChild(a);
+  if (autoDismissMs != null) {
+    setTimeout(() => { if (a.parentNode) a.parentNode.removeChild(a); }, autoDismissMs);
+  }
+  return a;
 }
 function clearAlerts() {
   document.getElementById('liveAlerts').innerHTML = '';
@@ -2393,6 +2455,13 @@ document.addEventListener('visibilitychange', () => {
     navigator.wakeLock.request('screen').then(w => wakeLock = w).catch(() => {});
   }
 });
+
+// PWA: register service worker for offline app-shell caching
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(e => console.warn('SW registration failed', e));
+  });
+}
 </script>
 </body>
 </html>
